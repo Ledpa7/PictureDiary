@@ -3,10 +3,11 @@
 import { useState } from "react"
 import { PolaroidCard } from "@/components/PolaroidCard"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/utils/supabase/client"
 
 export default function NewEntryPage() {
     const router = useRouter()
+    const supabase = createClient()
     const [isGenerating, setIsGenerating] = useState(false)
     const [generatedImage, setGeneratedImage] = useState<string | null>(null)
     const [story, setStory] = useState("")

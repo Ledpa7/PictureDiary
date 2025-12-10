@@ -1,16 +1,56 @@
-import { auth } from "@/auth"
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export default auth((req) => {
-    const isLoggedIn = !!req.auth
-    const isOnDashboard = req.nextUrl.pathname.startsWith('/journal') || req.nextUrl.pathname.startsWith('/gallery')
+export async function middleware(request: NextRequest) {
+    let response = NextResponse.next({
+        request: {
+            headers: request.headers,
+        },
+    })
 
-    if (isOnDashboard) {
-        if (isLoggedIn) return
-        // Temporarily disabled for Mock Mode
-        // return Response.redirect(new URL('/login', req.nextUrl))
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                getAll() {
+                    return request.cookies.getAll()
+                },
+                setAll(cookiesToSet) {
+                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+                    response = NextResponse.next({
+                        request,
+                    })
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        response.cookies.set(name, value, options)
+                    )
+                },
+            },
+        }
+    )
+
+    // refresh session if expired
+    const {
+        data: { user },
+    } = await supabase.auth.getUser()
+
+    const isOnDashboard = request.nextUrl.pathname.startsWith('/journal') || request.nextUrl.pathname.startsWith('/gallery')
+
+    // Protect dashboard routes
+    if (isOnDashboard && !user) {
+        return NextResponse.redirect(new URL('/', request.url))
     }
-})
+
+    // Redirect logged-in users away from landing page to gallery
+    if (user && request.nextUrl.pathname === '/') {
+        return NextResponse.redirect(new URL('/gallery', request.url))
+    }
+
+    return response
+}
 
 export const config = {
-    matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+    matcher: [
+        '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    ],
 }

@@ -2,29 +2,7 @@
 
 import { PolaroidCard } from "@/components/PolaroidCard"
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
-
-// Mock Data for display
-const MOCK_ENTRIES = [
-    {
-        id: 1,
-        date: "Dec 08, 2025",
-        imageUrl: "https://images.unsplash.com/photo-1596464716127-f9a0819421f6?q=80&w=600&auto=format&fit=crop",
-        caption: "Built a snowman in the garden!",
-    },
-    {
-        id: 2,
-        date: "Dec 05, 2025",
-        imageUrl: "https://images.unsplash.com/photo-1516233758813-a38d024919c5?q=80&w=600&auto=format&fit=crop",
-        caption: "Had strawberry ice cream.",
-    },
-    {
-        id: 3,
-        date: "Nov 30, 2025",
-        imageUrl: "https://images.unsplash.com/photo-1502444330042-d1a1ddf9bb5b?q=80&w=600&auto=format&fit=crop",
-        caption: "Playing with my cat.",
-    },
-]
+import { createClient } from "@/utils/supabase/client"
 
 interface DiaryEntry {
     id: number
@@ -34,7 +12,8 @@ interface DiaryEntry {
 }
 
 export default function GalleryPage() {
-    const [entries, setEntries] = useState<DiaryEntry[]>(MOCK_ENTRIES)
+    const supabase = createClient()
+    const [entries, setEntries] = useState<DiaryEntry[]>([])
 
     useEffect(() => {
         const fetchEntries = async () => {

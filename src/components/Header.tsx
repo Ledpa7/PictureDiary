@@ -1,15 +1,43 @@
-import Link from "next/link";
-import { auth, signIn, signOut } from "@/auth"
+"use client"
 
-export async function Header() {
-    const session = await auth()
+import Link from "next/link";
+import { createClient } from "@/utils/supabase/client";
+import { useEffect, useState } from "react";
+import { User } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
+
+export function Header() {
+    const [user, setUser] = useState<User | null>(null);
+    const router = useRouter();
+    const supabase = createClient();
+
+    useEffect(() => {
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        setUser(null);
+        router.push("/");
+    };
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="container flex h-14 max-w-screen-2xl items-center px-4">
-                <Link className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary" href="/">
+                <a className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary cursor-pointer hover:opacity-80 transition-opacity" href="/">
                     <span>My Picture Diary</span>
-                </Link>
+                </a>
                 <nav className="flex flex-1 items-center space-x-6 text-sm font-medium">
                     <Link
                         href="/journal"
@@ -25,28 +53,24 @@ export async function Header() {
                     </Link>
                 </nav>
                 <div className="flex items-center space-x-4">
-                    {session?.user ? (
+                    {user ? (
                         <div className="flex items-center gap-4">
-                            {session.user.image && (
+                            {user.user_metadata.avatar_url && (
                                 <img
-                                    src={session.user.image}
-                                    alt={session.user.name || "User"}
+                                    src={user.user_metadata.avatar_url}
+                                    alt={user.user_metadata.full_name || "User"}
                                     className="w-8 h-8 rounded-full border border-border"
                                 />
                             )}
-                            <form
-                                action={async () => {
-                                    "use server"
-                                    await signOut()
-                                }}
+                            <button
+                                onClick={handleLogout}
+                                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
                             >
-                                <button className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                                    Sign Out
-                                </button>
-                            </form>
+                                Logout
+                            </button>
                         </div>
                     ) : (
-                        <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                        <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                             Sign In
                         </Link>
                     )}
