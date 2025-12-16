@@ -296,12 +296,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Daily limit reached (1 diary per day). Upgrade to Level 100+ for more!' }, { status: 403 });
         }
 
-        const { prompt } = await request.json();
         if (!prompt) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
 
-        const projectId = process.env.GOOGLE_PROJECT_ID;
+        let projectId = process.env.GOOGLE_PROJECT_ID;
         if (!projectId) {
             return NextResponse.json({ error: 'GOOGLE_PROJECT_ID is not configured' }, { status: 500 });
         }
@@ -331,11 +330,15 @@ export async function POST(request: Request) {
                 // Explicitly set projectId from credentials if available
                 authOptions.projectId = credentials.project_id || projectId;
 
-                console.log(`[DEBUG] Authenticating as Service Account: ${credentials.client_email}`);
-
-                if (credentials.project_id && credentials.project_id !== projectId) {
-                    console.warn(`[WARNING] Mismatch: Env GOOGLE_PROJECT_ID (${projectId}) vs JSON project_id (${credentials.project_id})`);
+                // CRITICAL FIX: Always trust the Service Account's Project ID over the Env Var
+                // This prevents cases where GOOGLE_PROJECT_ID is typoed or mismatched in Vercel
+                if (credentials.project_id) {
+                    console.log(`[Re-Alignment] Switching Project ID from '${projectId}' to '${credentials.project_id}' (from JSON)`);
+                    projectId = credentials.project_id;
                 }
+
+                console.log(`[DEBUG] Authenticating as Service Account: ${credentials.client_email}`);
+                console.log(`[DEBUG] Target Project ID: ${projectId}`);
             } catch (e: any) {
                 console.error("Failed to parse GOOGLE_CREDENTIALS_JSON");
                 console.error("Error Details:", e.message);
