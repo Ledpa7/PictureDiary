@@ -1,31 +1,67 @@
 "use client"
 
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from '@/utils/supabase/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function Home() {
-  const [lang, setLang] = useState<'ko' | 'en'>('ko');
+  const { language: lang, setLanguage: setLang } = useLanguage();
 
   const content = {
     ko: {
-      title: "나만의 그림 일기장",
-      subtitle: "소중한 추억을 기록하고, 아름다운 그림으로 간직하세요.",
+      title: "Doodle Log",
+      subtitle: "하루에 한 번, 소중한 추억을 기록하고\n귀여운 AI 그림으로 받아보세요.",
       button: "구글로 시작하기",
-      gallery: "최근 올라온 일기"
+      gallery: "다른 사람의 기록"
     },
     en: {
-      title: "My Own Picture Diary",
-      subtitle: "Record precious memories and keep them as beautiful drawings.",
+      title: "Doodle Log",
+      subtitle: "Record your precious memories once a day and receive a cute AI drawing.",
       button: "Start with Google",
-      gallery: "Recent Diaries"
+      gallery: "Other People's Logs"
     }
   };
 
+  interface DiaryEntry {
+    id: number
+    userId: string
+    date: string
+    imageUrl: string
+    caption: string
+  }
+
+  const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchRecentDiaries = async () => {
+      const { data: diaries, error } = await supabase
+        .from('diaries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10); // Bring only recent 10
+
+      if (diaries) {
+        const mapped = diaries.map((d: any) => ({
+          id: d.id,
+          userId: d.user_id,
+          date: new Date(d.created_at).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }),
+          imageUrl: d.image_url,
+          caption: d.content
+        }));
+        setEntries(mapped);
+      }
+    };
+    fetchRecentDiaries();
+  }, [lang]);
+
   const handleLogin = async () => {
     try {
-      const supabase = createClient();
-      console.log('Starting Google Login...');
+      const redirectUrl = `${location.origin}/auth/callback?next=/gallery`;
+      // alert(`Debug: Requesting redirect to ${redirectUrl}`); // Debug removed
+      console.log('Starting Google Login with redirect:', redirectUrl);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -39,35 +75,35 @@ export default function Home() {
       if (error) throw error;
     } catch (error: any) {
       console.error('Login Error:', error);
-      alert('로그인 오류가 발생했습니다: ' + error.message);
+      alert((lang === 'ko' ? '로그인 오류가 발생했습니다: ' : 'Login Error: ') + error.message);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans relative">
+    <div className="min-h-screen flex flex-col font-handwriting relative">
       {/* Language Toggle */}
-      <div className="absolute top-6 right-6 flex gap-2 z-10">
+      <div className="absolute top-6 right-6 flex gap-2 z-10 w-fit">
         <button
           onClick={() => setLang('ko')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'ko' ? 'bg-primary text-white font-bold shadow-md' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}
+          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'ko' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
         >
           KR
         </button>
         <button
           onClick={() => setLang('en')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'en' ? 'bg-primary text-white font-bold shadow-md' : 'text-stone-400 hover:text-stone-600 hover:bg-stone-100'}`}
+          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'en' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
         >
           EN
         </button>
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-8 gap-16 sm:p-20">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 gap-8 sm:p-8">
         {/* Hero Section */}
-        <section className="flex flex-col gap-8 items-center text-center max-w-2xl mt-12">
+        <section className="flex flex-col gap-8 items-center text-center max-w-2xl mt-4">
           <h1 className="text-5xl font-bold text-primary leading-tight">
             {content[lang].title}
           </h1>
-          <p className="text-xl text-foreground max-w-md mx-auto text-stone-600">
+          <p className="text-xl text-muted-foreground max-w-md mx-auto whitespace-pre-line">
             {content[lang].subtitle}
           </p>
 
@@ -84,33 +120,79 @@ export default function Home() {
 
         {/* Recent Diaries Section */}
         <section className="w-full max-w-6xl flex flex-col gap-8 mt-12 mb-12">
-          <h2 className="text-2xl font-bold text-center text-stone-600 relative">
-            <span className="bg-white px-6 relative z-10">{content[lang].gallery}</span>
-            <div className="absolute top-1/2 left-0 w-full h-px bg-stone-200 -z-0"></div>
+          <h2 className="flex items-center w-full">
+            <div className="h-px bg-border flex-1"></div>
+            <span className="text-2xl font-bold text-foreground px-6">{content[lang].gallery}</span>
+            <div className="h-px bg-border flex-1"></div>
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 px-4">
-            {[10, 15, 20, 25].map((seed, i) => (
-              <div key={i} className="aspect-[3/4] bg-white p-4 rounded-sm shadow-md border border-stone-100 transform hover:-translate-y-2 transition-transform duration-300 cursor-pointer group">
-                <div className="relative w-full h-[85%] bg-stone-50 overflow-hidden rounded-sm mb-3 border border-stone-100">
-                  <Image
-                    src={`https://picsum.photos/seed/${seed}/400/500`}
-                    alt="Diary Entry"
-                    fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-700"
-                  />
-                </div>
-                <div className="font-handwriting text-stone-500 text-sm text-center flex justify-between px-1">
-                  <span>2025. 12. {seed}</span>
-                  <span>User_{seed}</span>
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-0.5 border border-border bg-border">
+            {entries.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-muted-foreground bg-card">
+                {lang === 'ko' ? '데이터를 불러오는 중이거나 아직 일기가 없습니다.' : 'Loading or no diaries yet.'}
               </div>
-            ))}
+            ) : (
+              entries.map((entry) => (
+                <div key={entry.id} className="flex flex-col bg-background cursor-pointer group hover:opacity-90 transition-opacity">
+                  {/* Image Section - Square */}
+                  <div className="relative aspect-square w-full bg-muted overflow-hidden">
+                    <Image
+                      src={entry.imageUrl || `https://picsum.photos/seed/${entry.id}/500/500`}
+                      alt="Diary Entry"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+
+                  {/* Content Section - Below Image */}
+                  <div className="p-3 flex flex-col gap-1 min-h-[80px]">
+                    <div className="flex justify-between items-baseline text-xs text-muted-foreground font-handwriting">
+                      <span>{entry.date}</span>
+                      <Link
+                        href={`/gallery/${entry.userId}`}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        className="hover:text-primary hover:underline transition-colors"
+                      >
+                        User_{entry.userId ? entry.userId.slice(0, 4) : '????'}
+                      </Link>
+                    </div>
+                    <div className="text-sm text-foreground line-clamp-2 leading-relaxed font-handwriting">
+                      {(() => {
+                        let title = ""
+                        let body = ""
+                        const parts = entry.caption.split(/\r?\n/)
+                        if (parts.length > 1) {
+                          title = parts[0]
+                          body = parts.slice(1).join(' ')
+                        } else {
+                          const bracketIndex = entry.caption.indexOf(']')
+                          if (bracketIndex !== -1 && bracketIndex < entry.caption.length - 1) {
+                            title = entry.caption.slice(0, bracketIndex + 1)
+                            body = entry.caption.slice(bracketIndex + 1)
+                          } else {
+                            title = entry.caption
+                            body = ""
+                          }
+                        }
+                        // Clean brackets
+                        title = title.replace(/^\[|\]$/g, '')
+
+                        return (
+                          <>
+                            <span className="font-bold text-base mr-1">{title}</span>
+                            <span className="opacity-80">{body}</span>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )))}
           </div>
         </section>
       </main>
 
-      <footer className="py-8 flex gap-6 flex-wrap items-center justify-center text-muted-foreground border-t border-stone-100">
+      <footer className="py-8 flex gap-6 flex-wrap items-center justify-center text-muted-foreground border-t border-border">
         <p>© 2025 AI Picture Diary</p>
       </footer>
     </div>

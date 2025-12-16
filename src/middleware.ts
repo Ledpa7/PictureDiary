@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    const isOnDashboard = request.nextUrl.pathname.startsWith('/journal') || request.nextUrl.pathname.startsWith('/gallery')
+    const isOnDashboard = request.nextUrl.pathname.startsWith('/journal') || request.nextUrl.pathname.startsWith('/gallery') || request.nextUrl.pathname.startsWith('/admin')
 
     // Protect dashboard routes
     if (isOnDashboard && !user) {

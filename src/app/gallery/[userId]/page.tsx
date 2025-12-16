@@ -2,11 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Heart, MessageCircle, Bookmark, X, Send, Plus } from "lucide-react"
+import { Plus, Heart, MessageCircle, Bookmark, X, Edit2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
-import { useRouter } from "next/navigation"
-
-import { useLanguage } from "@/context/LanguageContext"
+import { useParams, useRouter } from "next/navigation"
 import TiltCard from "@/components/TiltCard"
 
 interface DiaryEntry {
@@ -30,35 +28,59 @@ interface Comment {
     created_at: string
 }
 
-export default function GalleryPage() {
-    const { language } = useLanguage()
+interface Profile {
+    username: string
+    description: string
+    avatar_url?: string
+}
+
+export default function UserGalleryPage() {
+    const params = useParams()
+    const router = useRouter()
+    const userId = params?.userId as string
+
     const [entries, setEntries] = useState<DiaryEntry[]>([])
     const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null)
-    const [loading, setLoading] = useState(true) // Initial loading
-    const [loadingMore, setLoadingMore] = useState(false) // Pagination loading
+    const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [comments, setComments] = useState<Comment[]>([])
     const [newComment, setNewComment] = useState("")
     const [currentUser, setCurrentUser] = useState<any>(null)
-    const router = useRouter()
+    const [userStats, setUserStats] = useState({ likes: 0, comments: 0 })
 
     // Pagination
     const PAGE_SIZE = 12
     const [hasMore, setHasMore] = useState(true)
     const observerTarget = useRef(null)
 
-    const [stats, setStats] = useState({ likes: 0, comments: 0 })
+    // Profile State
+    const [profile, setProfile] = useState<Profile | null>(null)
+    const [isEditingProfile, setIsEditingProfile] = useState(false)
+    const [editForm, setEditForm] = useState({ username: "", description: "" })
+    const [avatarFile, setAvatarFile] = useState<File | null>(null)
+    const [uploading, setUploading] = useState(false)
 
     const supabase = createClient()
 
-    // Fetch User
+    // Fetch User & Profile
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUser(user)
         }
+
+        const fetchProfile = async () => {
+            if (!userId) return
+            // Try to fetch profile
+            const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+            if (data) {
+                setProfile(data)
+            }
+        }
+
         getUser()
-        fetchStats()
-    }, [])
+        fetchProfile()
+    }, [userId])
 
     // Intersection Observer for Infinite Scroll
     useEffect(() => {
@@ -80,25 +102,109 @@ export default function GalleryPage() {
                 observer.unobserve(observerTarget.current)
             }
         }
-    }, [observerTarget, hasMore, loading, loadingMore]) // Dependencies crucial
+    }, [observerTarget, hasMore, loading, loadingMore])
 
     const loadMore = () => {
         const nextPage = Math.ceil(entries.length / PAGE_SIZE)
         fetchEntries(nextPage)
     }
 
-    // Fetch Global Stats
-    const fetchStats = async () => {
-        const { count: likesCount } = await supabase.from('likes').select('*', { count: 'exact', head: true })
-        const { count: commentsCount } = await supabase.from('comments').select('*', { count: 'exact', head: true })
-        setStats({
-            likes: likesCount || 0,
-            comments: commentsCount || 0
+    // Helper: Resize & Crop Image
+    const resizeAndCropImage = (file: File): Promise<Blob> => {
+        return new Promise((resolve, reject) => {
+            const img = document.createElement('img')
+            img.src = URL.createObjectURL(file)
+            img.onload = () => {
+                const canvas = document.createElement('canvas')
+                const ctx = canvas.getContext('2d')
+                if (!ctx) return reject(new Error('No canvas context'))
+
+                const targetSize = 100
+                canvas.width = targetSize
+                canvas.height = targetSize
+
+                // Center Crop Logic
+                const minSide = Math.min(img.width, img.height)
+                const sx = (img.width - minSide) / 2
+                const sy = (img.height - minSide) / 2
+
+                // Draw centered crop to 100x100 canvas
+                ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize)
+
+                canvas.toBlob((blob) => {
+                    if (blob) resolve(blob)
+                    else reject(new Error('Blob creation failed'))
+                }, file.type, 0.9)
+            }
+            img.onerror = (e) => reject(e)
         })
     }
 
-    // Fetch Entries
+    // Save Profile
+    const handleSaveProfile = async () => {
+        if (!currentUser) return
+        if (editForm.username.length > 20) return alert("Username too long (max 20)")
+        if (editForm.description.length > 50) return alert("Description too long (max 50)")
+
+        setUploading(true)
+        try {
+            let avatarUrl = profile?.avatar_url || ""
+
+            // Upload Avatar if file selected
+            if (avatarFile) {
+                // Resize to 100x100 square
+                const resizedBlob = await resizeAndCropImage(avatarFile)
+
+                const fileExt = avatarFile.name.split('.').pop()
+                const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`
+
+                // Upload to 'avatars' bucket
+                const { error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(fileName, resizedBlob, {
+                        contentType: avatarFile.type,
+                        upsert: true
+                    })
+
+                if (uploadError) throw uploadError
+
+                // Get Public URL
+                const { data: { publicUrl } } = supabase.storage
+                    .from('avatars')
+                    .getPublicUrl(fileName)
+
+                avatarUrl = publicUrl
+            }
+
+            const { error } = await supabase.from('profiles').upsert({
+                id: currentUser.id,
+                username: editForm.username,
+                description: editForm.description,
+                avatar_url: avatarUrl,
+                updated_at: new Date().toISOString(),
+            })
+
+            if (error) {
+                if (error.code === '23505') alert("Username already taken. Please choose another.")
+                else throw error
+                return
+            }
+
+            setProfile({ ...editForm, avatar_url: avatarUrl })
+            setIsEditingProfile(false)
+            setAvatarFile(null)
+        } catch (e: any) {
+            console.error("Profile update failed:", e.message)
+            alert("Failed to update profile. (Make sure you created 'avatars' bucket and set policies!)")
+        } finally {
+            setUploading(false)
+        }
+    }
+
+    // Fetch Entries for Specific User
     const fetchEntries = async (page = 0) => {
+        if (!userId) return
+
         try {
             if (page === 0) setLoading(true)
             else setLoadingMore(true)
@@ -106,13 +212,13 @@ export default function GalleryPage() {
             const from = page * PAGE_SIZE
             const to = from + PAGE_SIZE - 1
 
-            // Fetch diaries
             const { data: diaries, error } = await supabase
                 .from('diaries')
                 .select(`
                     id, created_at, image_url, content, user_id,
                     likes!likes_diary_id_fkey (user_id)
                 `)
+                .eq('user_id', userId) // Filter by userId
                 .order('created_at', { ascending: false })
                 .range(from, to)
 
@@ -121,44 +227,29 @@ export default function GalleryPage() {
             if (diaries && diaries.length > 0) {
                 const { data: { user } } = await supabase.auth.getUser()
 
-                // Fetch Profiles Manually (to avoid complex FK setup issues)
-                const userIds = Array.from(new Set(diaries.map((d: any) => d.user_id)))
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select('id, username, avatar_url')
-                    .in('id', userIds)
-
-                const profileMap = new Map()
-                profiles?.forEach((p: any) => profileMap.set(p.id, p))
-
-                const mappedEntries = diaries.map((d: any) => {
-                    const profile = profileMap.get(d.user_id)
-                    return {
-                        id: d.id,
-                        userId: d.user_id || "unknown",
-                        date: new Date(d.created_at).toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }),
-                        imageUrl: d.image_url,
-                        caption: d.content,
-                        likes: d.likes ? d.likes.length : 0,
-                        isLiked: user ? d.likes.some((like: any) => like.user_id === user.id) : false,
-                        author: {
-                            username: profile?.username || `User_${d.user_id?.slice(0, 4)}`,
-                            avatar_url: profile?.avatar_url
-                        }
-                    }
-                })
+                const mappedEntries = diaries.map((d: any) => ({
+                    id: d.id,
+                    userId: d.user_id || "unknown",
+                    date: new Date(d.created_at).toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }),
+                    imageUrl: d.image_url,
+                    caption: d.content,
+                    likes: d.likes ? d.likes.length : 0,
+                    isLiked: user ? d.likes.some((like: any) => like.user_id === user.id) : false
+                }))
 
                 if (page === 0) {
                     setEntries(mappedEntries as DiaryEntry[])
+                    // Simple stats calculation for initial load
+                    const totalLikes = mappedEntries.reduce((acc: number, curr: any) => acc + curr.likes, 0)
+                    setUserStats({ likes: totalLikes, comments: 0 })
                 } else {
                     setEntries(prev => [...prev, ...mappedEntries as DiaryEntry[]])
                 }
 
-                // If we got fewer items than requested, we reached the end
                 if (diaries.length < PAGE_SIZE) {
                     setHasMore(false)
                 }
@@ -174,11 +265,10 @@ export default function GalleryPage() {
     }
 
     useEffect(() => {
-        // Initial fetch
         fetchEntries(0)
-    }, [language])
+    }, [userId])
 
-    // Fetch Comments when entry selected
+    // Same comment/like logic as main gallery
     useEffect(() => {
         if (selectedEntry) {
             const fetchComments = async () => {
@@ -191,7 +281,7 @@ export default function GalleryPage() {
                 if (data) {
                     const mappedComments = data.map((c: any) => ({
                         id: c.id,
-                        username: "User", // Simplification: in real app, fetch user profile
+                        username: "User",
                         content: c.content,
                         created_at: new Date(c.created_at).toLocaleDateString()
                     }))
@@ -206,11 +296,13 @@ export default function GalleryPage() {
 
     const toggleLike = async (e: React.MouseEvent, entry: DiaryEntry) => {
         e.stopPropagation()
-        if (!currentUser) return alert(language === 'ko' ? "로그인이 필요합니다." : "Please sign in to like posts")
+        if (!currentUser) return alert("Please sign in to like posts")
 
         // 1. Optimistic UI Update
         const originalEntries = [...entries] // Backup for rollback
         const originalSelected = selectedEntry ? { ...selectedEntry } : null
+        const originalStats = { ...userStats }
+
         const isLiked = entry.isLiked
         const newIsLiked = !isLiked
         const newLikes = isLiked ? Math.max(0, entry.likes - 1) : entry.likes + 1
@@ -227,6 +319,12 @@ export default function GalleryPage() {
             setSelectedEntry({ ...selectedEntry, isLiked: newIsLiked, likes: newLikes })
         }
 
+        // Update User Stats
+        setUserStats(prev => ({
+            ...prev,
+            likes: isLiked ? Math.max(0, prev.likes - 1) : prev.likes + 1
+        }))
+
         try {
             // 2. Background DB Request
             if (isLiked) {
@@ -237,14 +335,12 @@ export default function GalleryPage() {
                 if (error) throw error
             }
 
-            // 3. Update Sync Stats (Non-blocking)
-            fetchStats()
-
         } catch (error) {
             console.error("Error toggling like:", error)
             // 4. Rollback on Error
             setEntries(originalEntries)
             if (originalSelected) setSelectedEntry(originalSelected)
+            setUserStats(originalStats)
             alert("Failed to update like. Please try again.")
         }
     }
@@ -261,8 +357,6 @@ export default function GalleryPage() {
 
             if (!error) {
                 setNewComment("")
-                await fetchStats() // Refresh Stats
-                // Refresh comments
                 const { data } = await supabase
                     .from('comments')
                     .select('*')
@@ -293,14 +387,134 @@ export default function GalleryPage() {
         return () => window.removeEventListener("keydown", handleEsc)
     }, [])
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">{language === 'ko' ? '로딩 중...' : 'Loading...'}</div>
+    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 
     return (
-        <div className="container max-w-5xl py-8 px-4 mx-auto pb-24">
-            {/* Header Removed */}
+        <div className="container max-w-5xl py-8 px-4 mx-auto">
+            <header className="flex flex-col items-center mb-12 gap-4">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-muted via-border to-foreground p-[2px]">
+                    <div className="w-full h-full rounded-full bg-card p-[2px] overflow-hidden">
+                        <img
+                            src={profile?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${userId}`}
+                            alt="Profile"
+                            className="w-full h-full rounded-full object-cover"
+                        />
+                    </div>
+                </div>
+                <div className="text-center relative">
+                    <div className="flex items-center justify-center gap-2">
+                        <h1 className="text-2xl font-bold font-sans">
+                            {profile?.username || `User_${userId?.slice(0, 4)}`}
+                        </h1>
+                        {currentUser?.id === userId && (
+                            <button
+                                onClick={() => {
+                                    setEditForm({
+                                        username: profile?.username || "",
+                                        description: profile?.description || ""
+                                    })
+                                    setAvatarFile(null)
+                                    setIsEditingProfile(true)
+                                }}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                <Edit2 size={18} />
+                            </button>
+                        )}
+                    </div>
+                    <p className="font-handwriting text-muted-foreground mt-2">
+                        {profile?.description || "Personal Diary Gallery"}
+                    </p>
 
+                    <div className="flex gap-6 justify-center mt-4 text-sm font-medium">
+                        <span><strong>{entries.length}</strong> posts</span>
+                        <span><strong>{userStats.likes}</strong> likes received</span>
+                    </div>
+                </div>
+            </header>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"> {/* Changed gap to 4 for Tilt Effect space */}
+            {/* Edit Profile Modal */}
+            {isEditingProfile && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setIsEditingProfile(false)}>
+                    <div className="bg-card w-full max-w-md p-6 rounded-lg shadow-xl animate-in fade-in zoom-in duration-200 text-card-foreground" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold">Edit Profile</h2>
+                            <button onClick={() => setIsEditingProfile(false)}><X size={20} className="text-muted-foreground hover:text-foreground" /></button>
+                        </div>
+
+                        <div className="space-y-5">
+                            {/* Avatar Upload */}
+                            <div>
+                                <label className="block text-sm font-bold text-foreground mb-2">Profile Image</label>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-muted overflow-hidden border border-border shrink-0">
+                                        {avatarFile ? (
+                                            <img src={URL.createObjectURL(avatarFile)} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${userId}`} className="w-full h-full object-cover" />
+                                        )}
+                                    </div>
+                                    <label className="cursor-pointer bg-muted px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-border transition-colors">
+                                        <span>Change Photo</span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={e => {
+                                                if (e.target.files?.[0]) setAvatarFile(e.target.files[0])
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-foreground mb-1">Username (max 20)</label>
+                                <input
+                                    type="text"
+                                    className="w-full border border-border bg-background rounded-md p-2 focus:ring-2 focus:ring-primary outline-none text-foreground"
+                                    maxLength={20}
+                                    value={editForm.username}
+                                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                                    placeholder={`User_${currentUser?.id.slice(0, 4)}`}
+                                />
+                                <div className="text-right text-xs text-stone-400 mt-1">{editForm.username.length}/20</div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-foreground mb-1">Description (max 50)</label>
+                                <input
+                                    type="text"
+                                    className="w-full border border-border bg-background rounded-md p-2 focus:ring-2 focus:ring-primary outline-none text-foreground"
+                                    maxLength={50}
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                                    placeholder="Personal Diary Gallery"
+                                />
+                                <div className="text-right text-xs text-muted-foreground mt-1">{editForm.description.length}/50</div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-6">
+                            <button
+                                onClick={() => setIsEditingProfile(false)}
+                                className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-md transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveProfile}
+                                disabled={uploading}
+                                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {uploading ? "Saving..." : "Save Changes"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {entries.map((entry) => (
                     <TiltCard
                         key={entry.id}
@@ -312,7 +526,7 @@ export default function GalleryPage() {
                                 src={entry.imageUrl}
                                 alt="Diary Entry"
                                 fill
-                                className="object-cover transition-transform duration-500 group-hover:scale-110" // Inner zoom
+                                className="object-cover transition-transform duration-500 group-hover:scale-110"
                                 sizes="(max-width: 768px) 50vw, 20vw"
                             />
                         </div>
@@ -337,7 +551,6 @@ export default function GalleryPage() {
                                                 body = ""
                                             }
                                         }
-                                        // Clean brackets
                                         title = title.replace(/^\[|\]$/g, '')
 
                                         return (
@@ -367,18 +580,20 @@ export default function GalleryPage() {
             </div>
 
             {/* Floating Action Button for New Diary */}
-            <button
-                onClick={() => router.push('/journal/new')}
-                className="fixed bottom-8 right-8 bg-[#FF8BA7]/60 backdrop-blur-sm text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 flex items-center justify-center group"
-                aria-label="Write New Diary"
-            >
-                <Plus size={32} className="group-hover:rotate-90 transition-transform drop-shadow-md" />
-            </button>
+            {currentUser?.id === userId && (
+                <button
+                    onClick={() => router.push('/journal/new')}
+                    className="fixed bottom-8 right-8 bg-[#FF8BA7]/60 backdrop-blur-sm text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 flex items-center justify-center group"
+                    aria-label="Write New Diary"
+                >
+                    <Plus size={32} className="group-hover:rotate-90 transition-transform drop-shadow-md" />
+                </button>
+            )}
 
             {selectedEntry && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setSelectedEntry(null)}>
                     <div
-                        className="bg-card max-w-4xl w-[45vh] max-w-[90vw] md:w-full md:max-w-4xl max-h-[90vh] flex flex-col md:flex-row rounded-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+                        className="bg-card w-[45vh] max-w-[90vw] md:w-full md:max-w-4xl max-h-[90vh] flex flex-col md:flex-row rounded-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 text-card-foreground"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Left: Image (Square) */}
@@ -389,49 +604,34 @@ export default function GalleryPage() {
                         </div>
 
                         {/* Right: Details */}
-                        <div className="w-full md:w-2/5 flex flex-col flex-1 min-h-0 md:h-auto text-card-foreground">
-                            {/* Header with Author - UPDATED */}
+                        <div className="w-full md:w-2/5 flex flex-col flex-1 min-h-0 md:h-auto">
                             <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-                                <div
-                                    className="flex items-center gap-3 cursor-pointer hover:bg-muted p-1.5 rounded-lg transition-colors -ml-2 select-none"
-                                    onClick={() => router.push(`/gallery/${selectedEntry.userId}`)}
-                                    title="View Author's Gallery"
-                                >
-                                    <div className="w-9 h-9 rounded-full bg-muted overflow-hidden border border-border shadow-sm flex-shrink-0">
-                                        <img
-                                            src={selectedEntry.author?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${selectedEntry.userId}`}
-                                            alt="Author"
-                                            className="w-full h-full object-cover"
-                                        />
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-muted overflow-hidden">
+                                        <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${selectedEntry.userId}`} alt="User" className="w-full h-full object-cover" />
                                     </div>
-                                    <div className="flex flex-col justify-center">
-                                        <span className="font-bold text-sm text-foreground leading-tight">
-                                            {selectedEntry.author?.username || `User_${selectedEntry.userId.slice(0, 4)}`}
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground font-medium">View Gallery</span>
-                                    </div>
+                                    <span className="font-bold text-sm">User_{selectedEntry.userId ? selectedEntry.userId.slice(0, 4) : '????'}</span>
                                 </div>
-                                <button onClick={() => setSelectedEntry(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={24} /></button>
+                                <button onClick={() => setSelectedEntry(null)} className="text-muted-foreground hover:text-foreground"><X size={24} /></button>
                             </div>
 
                             {/* Comments Area */}
                             <div className="p-4 flex-1 overflow-y-auto">
-
                                 <div className="flex gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-full bg-muted overflow-hidden flex-shrink-0">
+                                        <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${selectedEntry.userId}`} alt="User" className="w-full h-full object-cover" />
+                                    </div>
                                     <div className="text-sm w-full">
                                         <div className="flex flex-col w-full gap-1">
                                             {(() => {
                                                 let title = ""
                                                 let body = ""
-
-                                                // 1. Try splitting by newline
                                                 const parts = selectedEntry.caption.split(/\r?\n/)
 
                                                 if (parts.length > 1) {
                                                     title = parts[0]
                                                     body = parts.slice(1).join('\n').trim()
                                                 } else {
-                                                    // 2. No newline? Try splitting by closing bracket ']' if present (e.g. "[Title] Body")
                                                     const raw = selectedEntry.caption
                                                     const bracketIndex = raw.indexOf(']')
 
@@ -439,10 +639,6 @@ export default function GalleryPage() {
                                                         title = raw.slice(0, bracketIndex + 1).trim()
                                                         body = raw.slice(bracketIndex + 1).trim()
                                                     } else {
-                                                        // 3. Fallback: Treat everything as Body (or Title if short? Let's just create a Title block)
-                                                        // Actually, if it's just one chunk, let's treat it as Body to look normal, 
-                                                        // OR just show it all in the title block if it's short.
-                                                        // User wants separation. Let's act smart.
                                                         title = raw
                                                         body = ""
                                                     }
@@ -468,25 +664,6 @@ export default function GalleryPage() {
                                         <div className="text-xs text-muted-foreground mt-4 font-handwriting text-right border-t border-border pt-2">{selectedEntry.date}</div>
                                     </div>
                                 </div>
-
-                                { /* Comments Section Hidden for now */}
-                                {/* <div className="space-y-4">
-                                    {comments.map((comment) => (
-                                        <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0 flex items-center justify-center text-xs font-bold text-muted-foreground">
-                                                {comment.username[0]}
-                                            </div>
-                                            <div className="text-sm">
-                                                <span className="font-bold mr-2 text-foreground">{comment.username}</span>
-                                                <span className="text-muted-foreground">{comment.content}</span>
-                                                <div className="text-xs text-muted-foreground mt-1">{comment.created_at}</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {comments.length === 0 && (
-                                        <div className="text-center text-muted-foreground text-sm py-8">No comments yet. Be the first!</div>
-                                    )}
-                                </div> */}
                             </div>
 
                             {/* Action Bar */}
@@ -496,30 +673,10 @@ export default function GalleryPage() {
                                         <button onClick={(e) => toggleLike(e, selectedEntry)}>
                                             <Heart className={`transition-colors ${selectedEntry.isLiked ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-foreground"}`} size={24} />
                                         </button>
-                                        {/* <MessageCircle className="cursor-pointer text-muted-foreground hover:text-foreground" size={24} /> */}
                                     </div>
 
                                 </div>
                                 <div className="font-bold text-sm mb-1">{selectedEntry.likes} likes</div>
-
-                                {/* Comment Input Hidden */}
-                                {/* <div className="flex gap-2 mt-3 border-t border-border pt-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Add a comment..."
-                                        className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground text-foreground"
-                                        value={newComment}
-                                        onChange={(e) => setNewComment(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
-                                    />
-                                    <button
-                                        className="text-blue-500 font-bold text-sm disabled:opacity-50"
-                                        disabled={!newComment.trim()}
-                                        onClick={handlePostComment}
-                                    >
-                                        Post
-                                    </button>
-                                </div> */}
                             </div>
                         </div>
                     </div>
