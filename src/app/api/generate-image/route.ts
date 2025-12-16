@@ -296,6 +296,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Daily limit reached (1 diary per day). Upgrade to Level 100+ for more!' }, { status: 403 });
         }
 
+        const { prompt } = await request.json();
         if (!prompt) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
