@@ -92,7 +92,13 @@ async function refinePromptWithGemini(originalPrompt: string, accessToken: strin
                     generationConfig: {
                         temperature: 0.3,
                         maxOutputTokens: 256,
-                    }
+                    },
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
                 })
             });
 
@@ -307,9 +313,15 @@ export async function POST(request: Request) {
 
         if (process.env.GOOGLE_CREDENTIALS_JSON) {
             try {
-                authOptions.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+                const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+                authOptions.credentials = credentials;
+                console.log(`[DEBUG] Authenticating as Service Account: ${credentials.client_email}`);
+                if (credentials.project_id !== projectId) {
+                    console.warn(`[WARNING] Mismatch: Env GOOGLE_PROJECT_ID (${projectId}) vs JSON project_id (${credentials.project_id})`);
+                }
             } catch (e) {
                 console.error("Failed to parse GOOGLE_CREDENTIALS_JSON", e);
+                throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
             }
         }
 
@@ -329,7 +341,7 @@ export async function POST(request: Request) {
             console.log('Refined Prompt:', refinedPrompt);
         } catch (e) {
             console.error('Prompt Refinement Failed:', e);
-            throw e;
+            throw e; // Hard fail as requested
         }
 
         // 2. Generate Image (Switched to Stability AI for cost)
