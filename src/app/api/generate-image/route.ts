@@ -361,7 +361,7 @@ export async function POST(request: Request) {
         // 1. Refine Prompt (Try Flash Lite, Fallback to others)
         let refinedPrompt;
         try {
-            refinedPrompt = await refinePromptWithGemini(prompt, token, projectId);
+            refinedPrompt = await refinePromptWithGemini(prompt, token!, projectId!);
             console.log('Refined Prompt:', refinedPrompt);
         } catch (e) {
             console.error('Prompt Refinement Failed:', e);
