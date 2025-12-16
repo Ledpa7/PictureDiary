@@ -313,15 +313,35 @@ export async function POST(request: Request) {
 
         if (process.env.GOOGLE_CREDENTIALS_JSON) {
             try {
-                const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+                const jsonContent = process.env.GOOGLE_CREDENTIALS_JSON;
+                // Basic cleanup if user pasted with surrounding quotes by mistake? (Optional but safe)
+                const cleanedJson = jsonContent.startsWith("'") || jsonContent.startsWith('"')
+                    ? jsonContent.slice(1, -1)
+                    : jsonContent;
+
+                const credentials = JSON.parse(cleanedJson);
+
+                // CRITICAL FIX: Handle Vercel Environment Variable Newline Escaping
+                // Sometimes \n comes in as a literal "\\n" string which crypto fails on.
+                if (credentials.private_key) {
+                    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+                }
+
                 authOptions.credentials = credentials;
+                // Explicitly set projectId from credentials if available
+                authOptions.projectId = credentials.project_id || projectId;
+
                 console.log(`[DEBUG] Authenticating as Service Account: ${credentials.client_email}`);
-                if (credentials.project_id !== projectId) {
+
+                if (credentials.project_id && credentials.project_id !== projectId) {
                     console.warn(`[WARNING] Mismatch: Env GOOGLE_PROJECT_ID (${projectId}) vs JSON project_id (${credentials.project_id})`);
                 }
-            } catch (e) {
-                console.error("Failed to parse GOOGLE_CREDENTIALS_JSON", e);
-                throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format");
+            } catch (e: any) {
+                console.error("Failed to parse GOOGLE_CREDENTIALS_JSON");
+                console.error("Error Details:", e.message);
+                // Do not log the full secret, but handling length helps debug
+                console.error("Content Length:", process.env.GOOGLE_CREDENTIALS_JSON?.length);
+                throw new Error("Invalid GOOGLE_CREDENTIALS_JSON format in Env Vars. Check Vercel Settings.");
             }
         }
 
