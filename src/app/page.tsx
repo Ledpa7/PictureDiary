@@ -193,7 +193,7 @@ export default function Home() {
       </main>
 
       <footer className="py-8 flex gap-6 flex-wrap items-center justify-center text-muted-foreground border-t border-border">
-        <p>© 2025 AI Picture Diary</p>
+        <p>&copy; 2025 DoodleLog AI</p>
       </footer>
     </div>
   );
