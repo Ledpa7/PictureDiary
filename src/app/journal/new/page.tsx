@@ -163,8 +163,8 @@ export default function NewEntryPage() {
                     console.warn("[Debug] Daily limit reached!");
                     if (!isPremium) {
                         setErrorMessage(language === 'ko'
-                            ? "현재 레벨에서는 하루에 한 번만 작성할 수 있습니다. (레벨 100부터 무제한)"
-                            : "Current level limit: 1 diary per day. Reach Level 100 for unlimited access.")
+                            ? "현재는 하루에 한 번만 작성할 수 있습니다."
+                            : "Currently, you can only create one diary per day.")
                     } else {
                         setErrorMessage(language === 'ko'
                             ? `일일 작성 한도(${dailyLimit}회)를 초과했습니다.`

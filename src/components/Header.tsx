@@ -230,7 +230,12 @@ export function Header() {
                                 />
                                 <div className="flex flex-col">
                                     <span className="font-bold text-lg">{user.user_metadata.full_name || "User"}</span>
-                                    <span className="text-sm text-muted-foreground">{user.email}</span>
+                                    {user.email && (
+                                        <div className="flex flex-col text-sm text-muted-foreground leading-tight">
+                                            <span className="truncate max-w-[150px]">{user.email.split('@')[0]}</span>
+                                            <span className="text-xs">@{user.email.split('@')[1]}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </Link>
 

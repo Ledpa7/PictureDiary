@@ -293,16 +293,7 @@ export default function GalleryPage() {
         return () => window.removeEventListener("keydown", handleEsc)
     }, [])
 
-    if (loading) return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-            <div className="animate-bounce">
-                <Pencil size={48} className="text-primary fill-primary/20" />
-            </div>
-            <div className="text-xl font-bold text-muted-foreground animate-pulse font-handwriting">
-                {language === 'ko' ? '추억을 불러오는 중...' : 'Loading memories...'}
-            </div>
-        </div>
-    )
+
 
     return (
         <div className="container max-w-5xl py-8 px-4 mx-auto pb-24">
@@ -315,66 +306,79 @@ export default function GalleryPage() {
 
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4"> {/* Changed gap to 2 for mobile, 4 for desktop */}
-                {entries.map((entry, index) => (
-                    <TiltCard
-                        key={entry.id}
-                        onClick={() => setSelectedEntry(entry)}
-                        className="group relative cursor-pointer bg-card flex flex-col h-full hover:z-10 shadow-sm border border-border overflow-hidden rounded-md"
-                    >
-                        <div className="relative aspect-square w-full bg-muted">
-                            <Image
-                                src={entry.imageUrl}
-                                alt="Diary Entry"
-                                fill
-                                className="object-cover transition-transform duration-500 group-hover:scale-110" // Inner zoom
-                                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-                                priority={index < 6}
-                                quality={75}
-                            />
+                {loading && entries.length === 0 ? (
+                    Array.from({ length: 10 }).map((_, i) => (
+                        <div key={i} className="bg-card flex flex-col h-full rounded-md border border-border overflow-hidden">
+                            <div className="aspect-square bg-muted animate-pulse" />
+                            <div className="p-3 flex flex-col gap-2">
+                                <div className="h-3 bg-muted rounded w-1/3 animate-pulse" />
+                                <div className="h-4 bg-muted rounded w-full animate-pulse" />
+                                <div className="h-4 bg-muted rounded w-2/3 animate-pulse" />
+                            </div>
                         </div>
-                        <div className="p-3 bg-card flex flex-col justify-between flex-1">
-                            <div>
-                                <p className="text-xs font-bold text-muted-foreground mb-1">{entry.date}</p>
-                                <div className="text-sm font-handwriting text-foreground line-clamp-2 leading-snug">
-                                    {(() => {
-                                        let title = ""
-                                        let body = ""
-                                        const parts = entry.caption.split(/\r?\n/)
-                                        if (parts.length > 1) {
-                                            title = parts[0]
-                                            body = parts.slice(1).join(' ')
-                                        } else {
-                                            const bracketIndex = entry.caption.indexOf(']')
-                                            if (bracketIndex !== -1 && bracketIndex < entry.caption.length - 1) {
-                                                title = entry.caption.slice(0, bracketIndex + 1)
-                                                body = entry.caption.slice(bracketIndex + 1)
+                    ))
+                ) : (
+                    entries.map((entry, index) => (
+                        <TiltCard
+                            key={entry.id}
+                            onClick={() => setSelectedEntry(entry)}
+                            className="group relative cursor-pointer bg-card flex flex-col h-full hover:z-10 shadow-sm border border-border overflow-hidden rounded-md"
+                        >
+                            <div className="relative aspect-square w-full bg-muted">
+                                <Image
+                                    src={entry.imageUrl}
+                                    alt="Diary Entry"
+                                    fill
+                                    className="object-cover transition-transform duration-500 group-hover:scale-110" // Inner zoom
+                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+                                    priority={index < 6}
+                                    quality={75}
+                                />
+                            </div>
+                            <div className="p-3 bg-card flex flex-col justify-between flex-1">
+                                <div>
+                                    <p className="text-xs font-bold text-muted-foreground mb-1">{entry.date}</p>
+                                    <div className="text-sm font-handwriting text-foreground line-clamp-2 leading-snug">
+                                        {(() => {
+                                            let title = ""
+                                            let body = ""
+                                            const parts = entry.caption.split(/\r?\n/)
+                                            if (parts.length > 1) {
+                                                title = parts[0]
+                                                body = parts.slice(1).join(' ')
                                             } else {
-                                                title = entry.caption
-                                                body = ""
+                                                const bracketIndex = entry.caption.indexOf(']')
+                                                if (bracketIndex !== -1 && bracketIndex < entry.caption.length - 1) {
+                                                    title = entry.caption.slice(0, bracketIndex + 1)
+                                                    body = entry.caption.slice(bracketIndex + 1)
+                                                } else {
+                                                    title = entry.caption
+                                                    body = ""
+                                                }
                                             }
-                                        }
-                                        // Clean brackets
-                                        title = title.replace(/^\[|\]$/g, '')
+                                            // Clean brackets
+                                            title = title.replace(/^\[|\]$/g, '')
 
-                                        return (
-                                            <>
-                                                <span className="font-bold text-base mr-1">{title}</span>
-                                                <span className="opacity-80">{body}</span>
-                                            </>
-                                        )
-                                    })()}
+                                            return (
+                                                <>
+                                                    <span className="font-bold text-base mr-1">{title}</span>
+                                                    <span className="opacity-80">{body}</span>
+                                                </>
+                                            )
+                                        })()}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1 mt-3 text-muted-foreground">
+                                    <Heart
+                                        size={14}
+                                        className={entry.isLiked ? "fill-red-500 text-red-500" : ""}
+                                    />
+                                    <span className="text-xs">{entry.likes}</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1 mt-3 text-muted-foreground">
-                                <Heart
-                                    size={14}
-                                    className={entry.isLiked ? "fill-red-500 text-red-500" : ""}
-                                />
-                                <span className="text-xs">{entry.likes}</span>
-                            </div>
-                        </div>
-                    </TiltCard>
-                ))}
+                        </TiltCard>
+                    ))
+                )}
 
                 {/* Sentinel for Infinite Scroll */}
                 <div ref={observerTarget} className="col-span-2 md:col-span-4 lg:col-span-5 h-20 flex items-center justify-center p-4">
