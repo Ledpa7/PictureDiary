@@ -3,6 +3,8 @@ import { Gaegu } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 
+import Link from "next/link";
+
 const gaegu = Gaegu({
   weight: ["300", "400", "700"],
   subsets: ["latin"],
@@ -29,6 +31,11 @@ export default function RootLayout({
           <main className="flex-1 flex flex-col">
             {children}
           </main>
+          <footer className="py-6 text-center text-sm text-muted-foreground border-t border-border/40">
+            <Link href="/privacy" className="hover:underline hover:text-primary transition-colors">
+              Privacy Policy
+            </Link>
+          </footer>
         </LanguageProvider>
       </body>
     </html>
