@@ -129,7 +129,7 @@ export default function PrivacyPolicyPage() {
             </div>
 
             <div className="mt-12 pt-8 border-t border-border text-center text-muted-foreground text-sm">
-                &copy; 2025 Anti-Gravity Diary Service. All rights reserved.
+                &copy; 2025 DoodleLog AI. All rights reserved.
             </div>
         </div>
     )
