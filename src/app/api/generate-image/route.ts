@@ -296,8 +296,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Daily limit reached (1 diary per day). Upgrade to Level 100+ for more!' }, { status: 403 });
         }
 
-        const { prompt } = await request.json();
-        if (!prompt) {
+        const { prompt: imagePrompt } = await request.json();
+        if (!imagePrompt) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
 
@@ -356,12 +356,12 @@ export async function POST(request: Request) {
 
         if (!token) throw new Error("Failed to retrieve access token");
 
-        console.log('Original Prompt:', prompt);
+        console.log('Original Prompt:', imagePrompt);
 
         // 1. Refine Prompt (Try Flash Lite, Fallback to others)
         let refinedPrompt;
         try {
-            refinedPrompt = await refinePromptWithGemini(prompt, token!, projectId!);
+            refinedPrompt = await refinePromptWithGemini(imagePrompt, token!, projectId!);
             console.log('Refined Prompt:', refinedPrompt);
         } catch (e) {
             console.error('Prompt Refinement Failed:', e);
