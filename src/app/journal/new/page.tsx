@@ -25,18 +25,19 @@ export default function NewEntryPage() {
     const [date, setDate] = useState({ year: '', month: '', day: '', weekday: '' })
     const [isAutoWeather, setIsAutoWeather] = useState(false)
     const [maxChars, setMaxChars] = useState(50)
+    const [isFocused, setIsFocused] = useState(false)
 
     // Check Level & Set Max Chars based on Language
     useEffect(() => {
         const checkUserLevel = async () => {
             const { data: { user } } = await supabase.auth.getUser()
 
-            let limit = language === 'en' ? 100 : 50
+            let limit = 100 // Unified Free Limit
 
             if (user) {
                 const { data: profile } = await supabase.from('profiles').select('level').eq('id', user.id).maybeSingle()
                 if (profile && profile.level >= 100) {
-                    limit = language === 'en' ? 400 : 200 // Premium User
+                    limit = 500 // Unified Premium Limit
                 }
             }
 
@@ -72,11 +73,14 @@ export default function NewEntryPage() {
                 // WMO Weather interpretation (simplified)
                 const code = data.current.weather_code
                 let weatherText = "Sunny"
-                if (code >= 0 && code <= 3) weatherText = "Sunny" // Clear/Cloudy
-                else if (code >= 45 && code <= 48) weatherText = "Foggy"
-                else if (code >= 51 && code <= 67) weatherText = "Rainy"
-                else if (code >= 71 && code <= 86) weatherText = "Snowy"
-                else if (code >= 95) weatherText = "Stormy"
+
+                // Enhanced WMO Code Mapping
+                if (code === 0) weatherText = "Sunny" // Clear sky
+                else if (code >= 1 && code <= 3) weatherText = "Cloudy" // Mainly clear, partly cloudy, and overcast
+                else if (code >= 45 && code <= 48) weatherText = "Cloudy" // Fog treated as Cloudy for simplicity (or make a new Fog icon if available, but for now match existing UI options)
+                else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) weatherText = "Rainy" // Drizzle, Rain, Showers
+                else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) weatherText = "Snowy" // Snow fall, grains, showers
+                else if (code >= 95) weatherText = "Stormy" // Thunderstorm
 
                 setWeather(weatherText)
                 setIsAutoWeather(true)
@@ -93,11 +97,15 @@ export default function NewEntryPage() {
 
     const handleGenerateAndSave = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (isGenerating) return
+
+        setIsGenerating(true)
         setErrorMessage(null)
 
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (userError || !user) {
             setErrorMessage(language === 'ko' ? "로그인이 필요합니다." : "You must be logged in.")
+            setIsGenerating(false)
             return
         }
 
@@ -147,6 +155,7 @@ export default function NewEntryPage() {
                 if (countError) {
                     console.error("Limit check failed:", countError)
                     setErrorMessage(language === 'ko' ? "작성 가능 여부 확인 실패" : "Failed to check limits")
+                    setIsGenerating(false)
                     return
                 }
 
@@ -161,14 +170,13 @@ export default function NewEntryPage() {
                             ? `일일 작성 한도(${dailyLimit}회)를 초과했습니다.`
                             : `Daily limit of ${dailyLimit} entries reached.`)
                     }
+                    setIsGenerating(false)
                     return
                 }
             } catch (err) {
                 console.error("Usage check error:", err)
             }
         }
-
-        setIsGenerating(true)
 
         try {
             // 1. Generate Image
@@ -209,7 +217,6 @@ export default function NewEntryPage() {
         } catch (error: any) {
             console.error("Process failed:", error)
             setErrorMessage(error.message)
-        } finally {
             setIsGenerating(false)
         }
     }
@@ -281,17 +288,17 @@ export default function NewEntryPage() {
     return (
         <div className="container max-w-2xl py-10 px-4 mx-auto font-handwriting">
             {/* Outer Frame - 4B Pencil Style (White Border) */}
-            <div className="border-4 border-white rounded-sm bg-card flex flex-col mb-6">
+            <div className="border-4 border-white rounded-sm bg-card flex flex-col mb-3 md:mb-6">
 
                 {/* Header: Date & Weather */}
-                <div className="flex border-b-[3px] border-white h-14">
-                    <div className="flex-[3] flex items-center justify-center gap-2 border-r-[3px] border-white text-xl font-bold text-primary">
-                        <span>{date.year}</span> <span className="text-sm font-normal">{language === 'ko' ? '년' : 'Year'}</span>
-                        <span>{date.month}</span> <span className="text-sm font-normal">{language === 'ko' ? '월' : 'Month'}</span>
-                        <span>{date.day}</span> <span className="text-sm font-normal">{language === 'ko' ? '일' : 'Day'}</span>
+                <div className="flex flex-col md:flex-row border-b-[3px] border-white md:h-14 h-auto">
+                    <div className="flex-1 md:flex-[3] flex items-center justify-start md:justify-center gap-1 md:gap-2 border-b-[3px] md:border-b-0 md:border-r-[3px] border-white text-lg md:text-xl font-bold text-primary py-1 md:py-0 pl-4 md:pl-0">
+                        <span>{date.year}</span> <span className="text-[10px] md:text-sm font-normal">{language === 'ko' ? '년' : 'Year'}</span>
+                        <span>{date.month}</span> <span className="text-[10px] md:text-sm font-normal">{language === 'ko' ? '월' : 'Month'}</span>
+                        <span>{date.day}</span> <span className="text-[10px] md:text-sm font-normal">{language === 'ko' ? '일' : 'Day'}</span>
                         <span>{date.weekday}{language === 'ko' ? '요일' : ''}</span>
                     </div>
-                    <div className="flex-[1] flex items-center justify-center gap-3 px-2">
+                    <div className="flex-1 md:flex-[2] flex items-center justify-end md:justify-center gap-2 px-2 py-1 md:py-0 overflow-x-auto md:overflow-visible pr-4 md:pr-0">
                         <div className="flex items-center gap-1">
                             <span className="whitespace-nowrap shrink-0 text-sm font-bold text-primary">{language === 'ko' ? '날씨:' : 'Weather:'}</span>
                             {isAutoWeather && <Lock size={14} className="text-stone-400" />}
@@ -304,10 +311,10 @@ export default function NewEntryPage() {
                                     key={w}
                                     onClick={() => !isAutoWeather && setWeather(w)}
                                     disabled={isAutoWeather}
-                                    className={`transition-all ${!isAutoWeather && 'hover:scale-110'} ${isSelected ? 'text-destructive scale-110' : 'text-muted-foreground'} ${isAutoWeather ? 'cursor-default' : 'cursor-pointer'}`}
+                                    className={`transition-all ${!isAutoWeather && 'hover:scale-110'} ${isSelected ? 'text-primary scale-110' : 'text-muted-foreground'} ${isAutoWeather ? 'cursor-default' : 'cursor-pointer'}`}
                                     title={w}
                                 >
-                                    <Icon size={24} className={isSelected ? "fill-current stroke-[3px]" : "stroke-[2.5px]"} />
+                                    <Icon className={`w-5 h-5 md:w-6 md:h-6 ${isSelected ? "fill-current stroke-[3px]" : "stroke-[2.5px]"}`} />
                                 </button>
                             );
                         })}
@@ -342,20 +349,20 @@ export default function NewEntryPage() {
 
                 {/* Title Section */}
                 <div
-                    className="h-12 border-b-[3px] border-stone-200 flex items-center px-4 gap-3 cursor-text"
+                    className="h-10 border-b-[3px] border-stone-200 flex items-center px-4 gap-2 md:gap-3 cursor-text"
                     onClick={() => document.getElementById('title-input')?.focus()}
                 >
-                    <span className="font-bold text-xl text-primary">{language === 'ko' ? '제목:' : 'Title:'}</span>
+                    <span className="font-bold text-base md:text-xl text-primary whitespace-nowrap">{language === 'ko' ? '제목:' : 'Title:'}</span>
                     <input
                         id="title-input"
                         value={title}
-                        maxLength={30}
+                        maxLength={20}
                         onChange={(e) => setTitle(e.target.value)}
-                        className="flex-1 bg-transparent focus:outline-none font-bold text-2xl text-foreground placeholder:text-muted-foreground"
+                        className="flex-1 min-w-0 bg-transparent focus:outline-none font-bold text-lg md:text-2xl text-foreground placeholder:text-muted-foreground"
                         placeholder={language === 'ko' ? '제목을 입력하세요' : 'Enter title'}
                     />
                     {/* Character Counter */}
-                    <div className="font-bold text-primary text-lg">
+                    <div className="font-bold text-primary text-sm md:text-lg whitespace-nowrap">
                         {story.length} / {maxChars}
                     </div>
                 </div>
@@ -380,7 +387,7 @@ export default function NewEntryPage() {
                                     onClick={() => handleBoxClick(i)}
                                     className={`
                                     aspect-square border border-stone-200 flex items-center justify-center
-                                    text-2xl font-bold text-foreground relative cursor-text
+                                    text-lg md:text-2xl leading-none font-bold text-foreground relative cursor-text
                                     ${i < story.length ? '' : ''}
                                 `}
                                     style={{
@@ -391,8 +398,8 @@ export default function NewEntryPage() {
                                     <span className="z-10">{story[i] || ''}</span>
 
                                     {/* Custom Cursor Logic */}
-                                    {i === cursorPos && (
-                                        <div className="absolute inset-2 border-2 border-destructive rounded-full animate-pulse pointer-events-none opacity-50" />
+                                    {isFocused && i === cursorPos && (
+                                        <div className="absolute inset-1 md:inset-2 border-4 border-primary rounded-full animate-pulse pointer-events-none opacity-50" />
                                     )}
                                 </div>
                             ))}
@@ -418,6 +425,8 @@ export default function NewEntryPage() {
                             }}
                             className="absolute inset-0 w-full h-full opacity-0 pointer-events-none resize-none text-base z-20 overflow-hidden"
                             autoFocus
+                            onFocus={() => setIsFocused(true)}
+                            onBlur={() => setIsFocused(false)}
                         />
                     </div>
                 </div>
@@ -434,7 +443,7 @@ export default function NewEntryPage() {
             {!isGenerating && !generatedImage && (
                 <button
                     onClick={handleGenerateAndSave}
-                    className="w-full mt-6 py-4 bg-[#FF8BA7] text-black font-bold text-xl rounded shadow-lg hover:scale-[1.02] transition-transform"
+                    className="w-full mt-3 md:mt-6 py-4 bg-[#FF8BA7] text-black font-bold text-xl rounded shadow-lg hover:scale-[1.02] transition-transform"
                 >
                     {language === 'ko' ? '그림일기 완성하기' : 'Complete Diary'}
                 </button>

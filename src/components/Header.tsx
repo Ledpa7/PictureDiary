@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link";
-import { Search, X } from "lucide-react";
+import { Search, X, Globe, LogOut } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
@@ -12,6 +12,7 @@ export function Header() {
     const [user, setUser] = useState<User | null>(null);
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -60,10 +61,16 @@ export function Header() {
         return () => subscription.unsubscribe();
     }, []);
 
+    // Close menu when route changes
+    useEffect(() => {
+        setIsMenuOpen(false);
+    }, [pathname]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         setUser(null);
         setAvatarUrl(null);
+        setIsMenuOpen(false); // Close mobile menu if open
         router.push("/");
     };
 
@@ -113,22 +120,26 @@ export function Header() {
     return (
         <>
             <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container flex h-14 max-w-screen-2xl items-center px-4">
-                    <Link className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary cursor-pointer hover:opacity-80 transition-opacity" href="/">
-                        <span>Doodle Log</span>
-                    </Link>
-                    <nav className="flex flex-1 items-center space-x-6 text-sm font-medium">
+                <div className="container flex h-14 max-w-screen-2xl items-center px-4 justify-between">
+                    <div className="flex items-center">
+                        <Link className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary cursor-pointer hover:opacity-80 transition-opacity" href="/">
+                            <span>Doodle Log</span>
+                        </Link>
+                        {/* Desktop Nav */}
+                        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
+                            {user && (
+                                <Link
+                                    href="/gallery"
+                                    className={`transition-colors hover:text-foreground/80 ${pathname === '/gallery' ? 'text-foreground font-bold' : 'text-foreground/60'}`}
+                                >
+                                    <span>{language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}</span>
+                                </Link>
+                            )}
+                        </nav>
+                    </div>
 
-                        {user && (
-                            <Link
-                                href="/gallery"
-                                className={`transition-colors hover:text-foreground/80 ${pathname === '/gallery' ? 'text-foreground font-bold' : 'text-foreground/60'}`}
-                            >
-                                {language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}
-                            </Link>
-                        )}
-                    </nav>
-                    <div className="flex items-center space-x-4">
+                    {/* Desktop Actions */}
+                    <div className="hidden md:flex items-center space-x-4">
                         {user ? (
                             <div className="flex items-center gap-4">
                                 <Link href={`/gallery/${user.id}`}>
@@ -141,22 +152,42 @@ export function Header() {
 
                                 <button
                                     onClick={() => setIsSearchOpen(true)}
-                                    className="mr-2 text-foreground hover:opacity-70 transition-opacity"
+                                    className="p-2 text-foreground hover:opacity-70 transition-opacity"
                                     title={language === 'ko' ? "사용자 검색" : "Search Users"}
                                 >
-                                    <Search size={24} />
+                                    <Search size={22} />
                                 </button>
                                 <button
                                     onClick={handleLogout}
-                                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                                    className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
                                 >
-                                    {language === 'ko' ? '로그아웃' : 'Logout'}
+                                    <span>{language === 'ko' ? '로그아웃' : 'Logout'}</span>
                                 </button>
                             </div>
                         ) : (
                             <button
                                 onClick={handleLogin}
-                                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
+                            >
+                                {language === 'ko' ? '로그인' : 'Sign In'}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Mobile Menu Button */}
+                    <div className="flex md:hidden items-center">
+                        {user ? (
+                            <button
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="p-2 text-foreground hover:opacity-70 transition-opacity"
+                            >
+                                {isMenuOpen ? <X size={24} /> : <Search className="hidden" /> /* Hack to keep imports valid if Search was used alone, but we need Menu */}
+                                {isMenuOpen ? null : <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleLogin}
+                                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors whitespace-nowrap"
                             >
                                 {language === 'ko' ? '로그인' : 'Sign In'}
                             </button>
@@ -164,6 +195,76 @@ export function Header() {
                     </div>
                 </div>
             </header>
+
+            {/* Mobile Menu Overlay */}
+            {isMenuOpen && user && (
+                <>
+                    {/* Backdrop */}
+                    <div
+                        className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm md:hidden animate-in fade-in duration-200"
+                        onClick={() => setIsMenuOpen(false)}
+                    />
+
+                    {/* Side Drawer */}
+                    <div className="fixed inset-y-0 right-0 z-[70] w-[65%] max-w-[280px] bg-background/95 backdrop-blur-md border-l border-border px-6 pb-6 shadow-2xl md:hidden animate-in slide-in-from-right-[100%] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col">
+                        <div className="h-14 flex items-center justify-end -mr-2 mb-6">
+                            <button
+                                onClick={() => setIsMenuOpen(false)}
+                                className="p-2 text-foreground hover:opacity-70"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <nav className="flex flex-col space-y-4 text-base font-medium">
+                            {/* Profile Section - Acts as "My Diary" link */}
+                            <Link
+                                href={`/gallery/${user.id}`}
+                                className="flex items-center gap-4 py-4 mb-2 border-b border-border/50 hover:bg-muted/50 rounded-lg -mx-2 px-2 transition-colors"
+                                onClick={() => setIsMenuOpen(false)}
+                            >
+                                <img
+                                    src={avatarUrl || user.user_metadata.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${user.id}`}
+                                    alt="Profile"
+                                    className="w-14 h-14 rounded-full border border-border object-cover"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-lg">{user.user_metadata.full_name || "User"}</span>
+                                    <span className="text-sm text-muted-foreground">{user.email}</span>
+                                </div>
+                            </Link>
+
+                            <button
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    setIsSearchOpen(true);
+                                }}
+                                className="flex items-center gap-3 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors text-left"
+                            >
+                                <Search className="w-5 h-5 text-muted-foreground" />
+                                <span>{language === 'ko' ? '검색' : 'Search'}</span>
+                            </button>
+
+                            <Link
+                                href="/gallery"
+                                className="flex items-center gap-3 py-3 px-2 hover:bg-muted/50 rounded-lg transition-colors"
+                                onClick={() => setIsMenuOpen(false)}
+                            >
+                                <Globe className="w-5 h-5 text-muted-foreground" />
+                                <span>{language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}</span>
+                            </Link>
+
+                            <button
+                                onClick={handleLogout}
+                                className="flex items-center gap-3 py-3 px-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors text-left mt-auto"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                <span>{language === 'ko' ? '로그아웃' : 'Logout'}</span>
+                            </button>
+                        </nav>
+                    </div>
+                </>
+            )}
 
             {/* Search Modal */}
             {isSearchOpen && (

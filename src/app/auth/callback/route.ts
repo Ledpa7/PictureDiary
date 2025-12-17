@@ -13,8 +13,17 @@ export async function GET(request: Request) {
         if (!error) {
             return NextResponse.redirect(`${origin}${next}`);
         }
+        // console.error("Auth error:", error);
+        return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(error.message)}`);
+    }
+
+    const errorCode = requestUrl.searchParams.get("error");
+    const errorDescription = requestUrl.searchParams.get("error_description");
+
+    if (errorCode) {
+        return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(errorDescription || errorCode)}`);
     }
 
     // return the user to an error page with instructions
-    return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+    return NextResponse.redirect(`${origin}/auth/auth-code-error?error=no_code`);
 }

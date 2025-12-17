@@ -65,7 +65,7 @@ export default function Home() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${location.origin}/auth/callback?next=/gallery`,
+          redirectTo: `${location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -81,36 +81,36 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col font-handwriting relative">
-      {/* Language Toggle */}
-      <div className="absolute top-6 right-6 flex gap-2 z-10 w-fit">
+      {/* Language Toggle - Mobile Optimized */}
+      <div className="absolute top-2 right-3 md:top-6 md:right-6 flex gap-2 z-10 w-fit">
         <button
           onClick={() => setLang('ko')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'ko' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+          className={`px-3 py-1.5 text-xs md:text-sm rounded-full transition-all duration-200 ${lang === 'ko' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
         >
           KR
         </button>
         <button
           onClick={() => setLang('en')}
-          className={`px-3 py-1.5 text-sm rounded-full transition-all duration-200 ${lang === 'en' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+          className={`px-3 py-1.5 text-xs md:text-sm rounded-full transition-all duration-200 ${lang === 'en' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
         >
           EN
         </button>
       </div>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-4 gap-8 sm:p-8">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 gap-6 sm:p-8 sm:gap-8">
         {/* Hero Section */}
-        <section className="flex flex-col gap-8 items-center text-center max-w-2xl mt-4">
-          <h1 className="text-5xl font-bold text-primary leading-tight">
+        <section className="flex flex-col gap-6 md:gap-8 items-center text-center max-w-2xl mt-8 md:mt-4">
+          <h1 className="text-4xl md:text-5xl font-bold text-primary leading-tight">
             {content[lang].title}
           </h1>
-          <p className="text-xl text-muted-foreground max-w-md mx-auto whitespace-pre-line">
+          <p className="text-base md:text-xl text-muted-foreground max-w-xs md:max-w-md mx-auto whitespace-pre-line leading-relaxed">
             {content[lang].subtitle}
           </p>
 
-          <div className="flex gap-4 items-center flex-col sm:flex-row mt-4">
+          <div className="flex gap-4 items-center flex-col sm:flex-row mt-2 md:mt-4">
             <button
               onClick={handleLogin}
-              className="rounded-full border border-solid border-transparent transition-all flex items-center justify-center bg-primary text-primary-foreground gap-3 hover:bg-[#FF9CB8] hover:scale-105 active:scale-95 text-lg h-14 px-10 shadow-lg shadow-pink-200/50"
+              className="rounded-full border border-solid border-transparent transition-all flex items-center justify-center bg-primary text-primary-foreground gap-3 hover:bg-[#FF9CB8] hover:scale-105 active:scale-95 text-base md:text-lg h-12 md:h-14 px-8 md:px-10 shadow-lg shadow-pink-200/50 w-full sm:w-auto"
             >
               <Image src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" width={24} height={24} className="bg-white rounded-full p-0.5" />
               {content[lang].button}

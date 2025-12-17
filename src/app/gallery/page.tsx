@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Heart, MessageCircle, Bookmark, X, Send, Plus } from "lucide-react"
+import { Heart, MessageCircle, Bookmark, X, Send, Plus, Pencil } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 
@@ -31,7 +31,7 @@ interface Comment {
 }
 
 export default function GalleryPage() {
-    const { language } = useLanguage()
+    const { language, setLanguage } = useLanguage()
     const [entries, setEntries] = useState<DiaryEntry[]>([])
     const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null)
     const [loading, setLoading] = useState(true) // Initial loading
@@ -293,15 +293,29 @@ export default function GalleryPage() {
         return () => window.removeEventListener("keydown", handleEsc)
     }, [])
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">{language === 'ko' ? '로딩 중...' : 'Loading...'}</div>
+    if (loading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+            <div className="animate-bounce">
+                <Pencil size={48} className="text-primary fill-primary/20" />
+            </div>
+            <div className="text-xl font-bold text-muted-foreground animate-pulse font-handwriting">
+                {language === 'ko' ? '추억을 불러오는 중...' : 'Loading memories...'}
+            </div>
+        </div>
+    )
 
     return (
         <div className="container max-w-5xl py-8 px-4 mx-auto pb-24">
-            {/* Header Removed */}
+            {/* Page Header */}
+            <div className="flex justify-between items-center mb-2 md:mb-4">
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+                    {language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}
+                </h1>
+            </div>
 
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4"> {/* Changed gap to 4 for Tilt Effect space */}
-                {entries.map((entry) => (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4"> {/* Changed gap to 2 for mobile, 4 for desktop */}
+                {entries.map((entry, index) => (
                     <TiltCard
                         key={entry.id}
                         onClick={() => setSelectedEntry(entry)}
@@ -313,7 +327,9 @@ export default function GalleryPage() {
                                 alt="Diary Entry"
                                 fill
                                 className="object-cover transition-transform duration-500 group-hover:scale-110" // Inner zoom
-                                sizes="(max-width: 768px) 50vw, 20vw"
+                                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+                                priority={index < 6}
+                                quality={75}
                             />
                         </div>
                         <div className="p-3 bg-card flex flex-col justify-between flex-1">
@@ -369,16 +385,16 @@ export default function GalleryPage() {
             {/* Floating Action Button for New Diary */}
             <button
                 onClick={() => router.push('/journal/new')}
-                className="fixed bottom-8 right-8 bg-[#FF8BA7]/60 backdrop-blur-sm text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 flex items-center justify-center group"
+                className="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-[#FF8BA7]/80 md:bg-[#FF8BA7]/60 backdrop-blur-sm text-white p-3 md:p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 flex items-center justify-center group"
                 aria-label="Write New Diary"
             >
-                <Plus size={32} className="group-hover:rotate-90 transition-transform drop-shadow-md" />
+                <Plus size={28} className="md:w-8 md:h-8 group-hover:rotate-90 transition-transform drop-shadow-md" />
             </button>
 
             {selectedEntry && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setSelectedEntry(null)}>
                     <div
-                        className="bg-card max-w-4xl w-[45vh] max-w-[90vw] md:w-full md:max-w-4xl max-h-[90vh] flex flex-col md:flex-row rounded-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
+                        className="bg-card w-full max-w-sm md:max-w-4xl md:w-full max-h-[85vh] md:max-h-[90vh] flex flex-col md:flex-row rounded-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Left: Image (Square) */}
