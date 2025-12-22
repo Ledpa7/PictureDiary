@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { useLanguage } from "@/context/LanguageContext"
+import { useGallery } from "@/context/GalleryContext"
 import Image from "next/image"
 import { Sun, Cloud, CloudRain, Snowflake, CloudLightning, Lock, Pencil } from "lucide-react"
 
@@ -11,6 +12,7 @@ export default function NewEntryPage() {
     const router = useRouter()
     const supabase = createClient()
     const { language, t } = useLanguage()
+    const { refresh } = useGallery()
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     const [isGenerating, setIsGenerating] = useState(false)
@@ -211,7 +213,10 @@ export default function NewEntryPage() {
 
             if (error) throw error
 
-            // 3. Redirect
+            // 3. Refresh Gallery Cache
+            refresh()
+
+            // 4. Redirect
             router.push("/gallery")
 
         } catch (error: any) {

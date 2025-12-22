@@ -289,11 +289,8 @@ export async function POST(request: Request) {
         const isPremium = profile && profile.level >= 100;
 
         // Strict Limit: Only 1 per day for non-premium
-        // Note: This checks 'saved' diaries. If a user generates but doesn't save, they can generate again.
-        // For stricter control, we would need a separate 'generation_logs' table.
-        // But this is a good first layer of defense.
         if (!isPremium && count !== null && count > 0) {
-            return NextResponse.json({ error: 'Daily limit reached (1 diary per day). Upgrade to Level 100+ for more!' }, { status: 403 });
+            return NextResponse.json({ error: 'Daily limit reached (1 diary per day)' }, { status: 403 });
         }
 
         const { prompt: imagePrompt } = await request.json();

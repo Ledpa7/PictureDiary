@@ -7,6 +7,7 @@ import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 
 import { useLanguage } from "@/context/LanguageContext"
+import { useGallery } from "@/context/GalleryContext"
 import TiltCard from "@/components/TiltCard"
 
 interface DiaryEntry {
@@ -32,25 +33,32 @@ interface Comment {
 
 export default function GalleryPage() {
     const { language, setLanguage } = useLanguage()
-    const [entries, setEntries] = useState<DiaryEntry[]>([])
-    const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null)
-    const [loading, setLoading] = useState(true) // Initial loading
-    const [loadingMore, setLoadingMore] = useState(false) // Pagination loading
+
+    // Use Global Context
+    const {
+        entries,
+        loading,
+        loadingMore,
+        hasMore,
+        fetchEntries,
+        toggleLikeInCache
+    } = useGallery()
+
+    const [selectedEntry, setSelectedEntry] = useState<any>(null) // Use any to match Context type easily or import standard type
     const [comments, setComments] = useState<Comment[]>([])
     const [newComment, setNewComment] = useState("")
     const [currentUser, setCurrentUser] = useState<any>(null)
     const router = useRouter()
 
     // Pagination
-    const PAGE_SIZE = 12
-    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 12 // Sync with Context
     const observerTarget = useRef(null)
 
     const [stats, setStats] = useState({ likes: 0, comments: 0 })
 
     const supabase = createClient()
 
-    // Fetch User
+    // Fetch User & Stats
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -60,11 +68,18 @@ export default function GalleryPage() {
         fetchStats()
     }, [])
 
+    // Load Initial Data ONLY if empty (Cache Strategy)
+    useEffect(() => {
+        if (entries.length === 0) {
+            fetchEntries(0)
+        }
+    }, [])
+
     // Intersection Observer for Infinite Scroll
     useEffect(() => {
         const observer = new IntersectionObserver(
-            entries => {
-                if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+            entriesObs => {
+                if (entriesObs[0].isIntersecting && hasMore && !loading && !loadingMore) {
                     loadMore()
                 }
             },
@@ -80,7 +95,7 @@ export default function GalleryPage() {
                 observer.unobserve(observerTarget.current)
             }
         }
-    }, [observerTarget, hasMore, loading, loadingMore]) // Dependencies crucial
+    }, [observerTarget, hasMore, loading, loadingMore, entries])
 
     const loadMore = () => {
         const nextPage = Math.ceil(entries.length / PAGE_SIZE)
@@ -97,86 +112,7 @@ export default function GalleryPage() {
         })
     }
 
-    // Fetch Entries
-    const fetchEntries = async (page = 0) => {
-        try {
-            if (page === 0) setLoading(true)
-            else setLoadingMore(true)
-
-            const from = page * PAGE_SIZE
-            const to = from + PAGE_SIZE - 1
-
-            // Fetch diaries
-            const { data: diaries, error } = await supabase
-                .from('diaries')
-                .select(`
-                    id, created_at, image_url, content, user_id,
-                    likes!likes_diary_id_fkey (user_id)
-                `)
-                .order('created_at', { ascending: false })
-                .range(from, to)
-
-            if (error) throw error
-
-            if (diaries && diaries.length > 0) {
-                const { data: { user } } = await supabase.auth.getUser()
-
-                // Fetch Profiles Manually (to avoid complex FK setup issues)
-                const userIds = Array.from(new Set(diaries.map((d: any) => d.user_id)))
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select('id, username, avatar_url')
-                    .in('id', userIds)
-
-                const profileMap = new Map()
-                profiles?.forEach((p: any) => profileMap.set(p.id, p))
-
-                const mappedEntries = diaries.map((d: any) => {
-                    const profile = profileMap.get(d.user_id)
-                    return {
-                        id: d.id,
-                        userId: d.user_id || "unknown",
-                        date: new Date(d.created_at).toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }),
-                        imageUrl: d.image_url,
-                        caption: d.content,
-                        likes: d.likes ? d.likes.length : 0,
-                        isLiked: user ? d.likes.some((like: any) => like.user_id === user.id) : false,
-                        author: {
-                            username: profile?.username || `User_${d.user_id?.slice(0, 4)}`,
-                            avatar_url: profile?.avatar_url
-                        }
-                    }
-                })
-
-                if (page === 0) {
-                    setEntries(mappedEntries as DiaryEntry[])
-                } else {
-                    setEntries(prev => [...prev, ...mappedEntries as DiaryEntry[]])
-                }
-
-                // If we got fewer items than requested, we reached the end
-                if (diaries.length < PAGE_SIZE) {
-                    setHasMore(false)
-                }
-            } else {
-                setHasMore(false)
-            }
-        } catch (error) {
-            console.error('Error fetching diaries:', error)
-        } finally {
-            setLoading(false)
-            setLoadingMore(false)
-        }
-    }
-
-    useEffect(() => {
-        // Initial fetch
-        fetchEntries(0)
-    }, [language])
+    // fetchEntries function REMOVED (Handled by Context)
 
     // Fetch Comments when entry selected
     useEffect(() => {
@@ -191,7 +127,7 @@ export default function GalleryPage() {
                 if (data) {
                     const mappedComments = data.map((c: any) => ({
                         id: c.id,
-                        username: "User", // Simplification: in real app, fetch user profile
+                        username: "User", // Simplification
                         content: c.content,
                         created_at: new Date(c.created_at).toLocaleDateString()
                     }))
@@ -204,25 +140,18 @@ export default function GalleryPage() {
         }
     }, [selectedEntry])
 
-    const toggleLike = async (e: React.MouseEvent, entry: DiaryEntry) => {
+    const toggleLike = async (e: React.MouseEvent, entry: any) => {
         e.stopPropagation()
         if (!currentUser) return alert(language === 'ko' ? "로그인이 필요합니다." : "Please sign in to like posts")
 
-        // 1. Optimistic UI Update
-        const originalEntries = [...entries] // Backup for rollback
-        const originalSelected = selectedEntry ? { ...selectedEntry } : null
         const isLiked = entry.isLiked
         const newIsLiked = !isLiked
         const newLikes = isLiked ? Math.max(0, entry.likes - 1) : entry.likes + 1
 
-        // Update Grid List State
-        setEntries(prev => prev.map(item =>
-            item.id === entry.id
-                ? { ...item, isLiked: newIsLiked, likes: newLikes }
-                : item
-        ))
+        // 1. Optimistic UI Update via Context
+        toggleLikeInCache(entry.id, newIsLiked, newLikes)
 
-        // Update Modal State (if open)
+        // Update Modal State too
         if (selectedEntry && selectedEntry.id === entry.id) {
             setSelectedEntry({ ...selectedEntry, isLiked: newIsLiked, likes: newLikes })
         }
@@ -237,14 +166,16 @@ export default function GalleryPage() {
                 if (error) throw error
             }
 
-            // 3. Update Sync Stats (Non-blocking)
+            // 3. Update Sync Stats
             fetchStats()
 
         } catch (error) {
             console.error("Error toggling like:", error)
-            // 4. Rollback on Error
-            setEntries(originalEntries)
-            if (originalSelected) setSelectedEntry(originalSelected)
+            // Rollback via Context (Flip back)
+            toggleLikeInCache(entry.id, isLiked, entry.likes)
+            if (selectedEntry && selectedEntry.id === entry.id) {
+                setSelectedEntry({ ...selectedEntry, isLiked: isLiked, likes: entry.likes })
+            }
             alert("Failed to update like. Please try again.")
         }
     }
