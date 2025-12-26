@@ -39,7 +39,7 @@ async function getGoogleToken() {
 
 async function callGemini(prompt: string, token: string, projectId: string) {
     const location = 'us-central1';
-    const modelId = 'gemini-2.0-flash-lite-preview-02-05'; // Use fast model
+    const modelId = 'gemini-1.5-flash-001'; // Use stable flash model
     const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
 
     const response = await fetch(url, {
