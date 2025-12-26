@@ -144,6 +144,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const refresh = useCallback(() => {
+        setEntries([]) // Clear cache to show skeletons/loading state
         setHasMore(true)
         setLastLoadedPage(-1)
         fetchEntries(0)
