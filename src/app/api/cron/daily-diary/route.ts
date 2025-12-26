@@ -91,19 +91,33 @@ async function generateImageWithStabilityAI(prompt: string) {
     return `data:image/png;base64,${data.artifacts[0].base64}`;
 }
 
+// Establish Vercel restrictions
+export const maxDuration = 60; // Try to extend timeout if plan allows (Hobby often capped at 10s, but worth setting)
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
+    console.log("[Cron] Starting Daily Diary Generation...");
+
     // 1. Verify Cron Secret (Security)
-    // Vercel sends `Authorization: Bearer <CRON_SECRET>`
     const authHeader = request.headers.get('authorization');
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        console.error("[Cron] Unauthorized attempt");
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
         const botUserId = process.env.BOT_USER_ID;
-        if (!botUserId) return NextResponse.json({ error: 'Details: BOT_USER_ID not set' }, { status: 500 });
+        // Detailed check for debugging
+        if (!botUserId) {
+            console.error("[Cron] Missing BOT_USER_ID environment variable");
+            return NextResponse.json({ error: 'Configuration Error: BOT_USER_ID missing' }, { status: 500 });
+        }
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error("[Cron] Missing SUPABASE_SERVICE_ROLE_KEY environment variable");
+        }
 
         // 2. Auth with Google
+        console.log("[Cron] Authenticating with Google...");
         const { token, projectId } = await getGoogleToken();
         if (!token || !projectId) throw new Error("Google Auth Failed");
 
