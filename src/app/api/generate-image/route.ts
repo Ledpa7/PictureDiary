@@ -389,13 +389,21 @@ export async function POST(request: Request) {
         let refinedPrompt = preRefinedPrompt;
 
         if (!refinedPrompt) {
-            console.log('Original Prompt:', imagePrompt); // Log original prompt only if refinement is needed
             const aiStudioKey = process.env.GEMINI_API_KEY;
-            try {
-                if (aiStudioKey) {
+
+            // Try AI Studio (Free Tier) first
+            if (aiStudioKey) {
+                try {
                     refinedPrompt = await refinePromptWithAIStudio(imagePrompt, aiStudioKey);
-                } else {
-                    // Logic for Vertex AI (Keep existing fallback)
+                } catch (e: any) {
+                    console.warn('[WARNING] AI Studio failed (possibly 429). Falling back to Vertex AI...', e.message);
+                    // refinedPrompt stays null, logic continues to Vertex AI below
+                }
+            }
+
+            // Fallback to Vertex AI if AI Studio failed or key is missing
+            if (!refinedPrompt) {
+                try {
                     const authOptions: any = {
                         scopes: ['https://www.googleapis.com/auth/cloud-platform'],
                     };
@@ -407,11 +415,10 @@ export async function POST(request: Request) {
                     const client = await auth.getClient();
                     const accessToken = await client.getAccessToken();
                     refinedPrompt = await refinePromptWithGemini(imagePrompt, accessToken.token!, projectId!);
+                } catch (vertexError: any) {
+                    console.error('All Prompt Refinement methods failed:', vertexError);
+                    throw vertexError;
                 }
-                console.log('Refined Prompt:', refinedPrompt);
-            } catch (e: any) {
-                console.error('Prompt Refinement Failed:', e);
-                throw e;
             }
         } else {
             console.log('Using Pre-Refined Prompt (Gemini Nano):', refinedPrompt);
