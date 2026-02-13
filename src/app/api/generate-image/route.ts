@@ -4,9 +4,8 @@ import { createClient } from "@/utils/supabase/server";
 
 // === [1순위] AI Studio용 무료 번역/정제 헬퍼 ===
 async function refinePromptWithAIStudio(originalPrompt: string, apiKey: string) {
-    // 🚀 가장 안정적인 'gemini-pro' 사용 (v1beta)
-    // 1.5-flash가 404가 뜨므로 확실한 Pro 모델로 변경
-    const model = 'gemini-pro';
+    // 🚀 [수정] gemini-pro도 404가 뜬다면, gemini-1.0-pro를 시도
+    const model = 'gemini-1.0-pro';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const instructions = `You are an expert art director. Convert the diary entry into a detailed English image prompt.
@@ -38,11 +37,8 @@ async function refinePromptWithAIStudio(originalPrompt: string, apiKey: string) 
 // === [2순위] Vertex AI용 유료/비상용 헬퍼 ===
 async function refinePromptWithVertexAI(originalPrompt: string, accessToken: string, projectId: string) {
     const location = 'us-central1';
-    // 🚀 [중요] 'gemini-1.5-flash-001'은 404가 뜸.
-    // 1.0 Pro는 가장 널리 쓰이는 안정적인 모델임.
-    // 2.0-flash-lite는 이전에 성공했던 이력이 있음.
     const modelsToTry = [
-        'gemini-1.0-pro-001',
+        'gemini-1.0-pro-001', // 가장 안정적
         'gemini-2.0-flash-lite',
         'gemini-pro'
     ];
@@ -153,12 +149,44 @@ export async function POST(request: Request) {
         // --- [2순위] Vertex AI (유료Fallback) ---
         if (!finalPrompt) {
             try {
-                const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+                // 🚀 [배포 환경 대응] 파일 경로가 아닌 JSON 내용(환경변수)을 직접 사용
+                // Vercel 등에서는 파일 시스템 접근보단 Env Var가 안전함
+                let authOptions: any = {
+                    scopes: ['https://www.googleapis.com/auth/cloud-platform']
+                };
+
+                let projectId = process.env.GOOGLE_PROJECT_ID;
+
+                if (process.env.GOOGLE_CREDENTIALS_JSON) {
+                    try {
+                        let jsonContent = process.env.GOOGLE_CREDENTIALS_JSON;
+                        // 따옴표 제거 처리
+                        if (jsonContent.startsWith("'") || jsonContent.startsWith('"')) {
+                            jsonContent = jsonContent.slice(1, -1);
+                        }
+                        const credentials = JSON.parse(jsonContent);
+
+                        // Private Key 개행문자 처리 (\n -> 실제 줄바꿈)
+                        if (credentials.private_key) {
+                            credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+                        }
+
+                        authOptions.credentials = credentials;
+                        authOptions.projectId = credentials.project_id || projectId;
+
+                        if (credentials.project_id) projectId = credentials.project_id;
+
+                        console.log("✅ Using GOOGLE_CREDENTIALS_JSON for Auth");
+                    } catch (e) {
+                        console.error("❌ Failed to parse GOOGLE_CREDENTIALS_JSON:", e);
+                        // Fallback to default file-based auth if JSON parse fails
+                    }
+                }
+
+                const auth = new GoogleAuth(authOptions);
                 const client = await auth.getClient();
                 const accessToken = (await client.getAccessToken()).token;
 
-                // .env에서 읽거나 자동 감지
-                let projectId = process.env.GOOGLE_PROJECT_ID;
                 if (!projectId) projectId = await auth.getProjectId();
 
                 if (accessToken && projectId) {
@@ -172,7 +200,7 @@ export async function POST(request: Request) {
         }
 
         if (!finalPrompt) {
-            return NextResponse.json({ error: "프롬프트 생성 실패: AI 모델을 찾을 수 없거나 응답하지 않습니다." }, { status: 500 });
+            return NextResponse.json({ error: "프롬프트 생성 실패: AI 모델을 찾을 수 없거나 인증에 실패했습니다." }, { status: 500 });
         }
 
         // --- [3단계] 최종 이미지 생성 ---
