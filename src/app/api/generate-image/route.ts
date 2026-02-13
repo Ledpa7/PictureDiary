@@ -45,7 +45,7 @@ async function refinePromptWithPaLM(instructions: string, originalPrompt: string
 
 // Helper: Refine Prompt with Google AI Studio (Free Tier)
 async function refinePromptWithAIStudio(originalPrompt: string, apiKey: string) {
-    const model = 'gemini-2.0-flash-lite';
+    const model = 'gemini-1.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const instructions = `
