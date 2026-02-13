@@ -62,18 +62,8 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  manifest: "/manifest.json",
   verification: {
     google: "google-site-verification-placeholder",
-  },
-  other: {
-    "geo.region": "US",
-    "geo.placename": "United States",
-    "geo.position": "37.0902;-95.7129",
-    "ICBM": "37.0902, -95.7129",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "Doodle Log",
   },
 };
 
@@ -110,6 +100,15 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+              });
+            `,
+          }}
         />
       </head>
       <body className={`${gaegu.variable} antialiased font-handwriting min-h-screen flex flex-col`}>

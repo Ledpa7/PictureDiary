@@ -2,27 +2,14 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Heart, MessageCircle, Bookmark, X, Send, Plus, Pencil } from "lucide-react"
+import { Heart, X, Send, Plus, Languages, Loader2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
 
 import { useLanguage } from "@/context/LanguageContext"
 import { useGallery } from "@/context/GalleryContext"
 import TiltCard from "@/components/TiltCard"
-
-interface DiaryEntry {
-    id: number
-    userId: string
-    date: string
-    imageUrl: string
-    caption: string
-    likes: number
-    isLiked: boolean
-    author?: {
-        username: string
-        avatar_url: string
-    }
-}
+import { translateText } from "@/utils/translation"
 
 interface Comment {
     id: number
@@ -32,9 +19,8 @@ interface Comment {
 }
 
 export default function GalleryPage() {
-    const { language, setLanguage } = useLanguage()
+    const { language } = useLanguage()
 
-    // Use Global Context
     const {
         entries,
         loading,
@@ -44,461 +30,245 @@ export default function GalleryPage() {
         toggleLikeInCache
     } = useGallery()
 
-    const [selectedEntry, setSelectedEntry] = useState<any>(null) // Use any to match Context type easily or import standard type
-    const [comments, setComments] = useState<Comment[]>([])
-    const [newComment, setNewComment] = useState("")
+    const [selectedEntry, setSelectedEntry] = useState<any>(null)
     const [currentUser, setCurrentUser] = useState<any>(null)
+    const [isTranslating, setIsTranslating] = useState(false)
+    const [translatedCaption, setTranslatedCaption] = useState<string | null>(null)
+
     const router = useRouter()
-
-    // Pagination
-    const PAGE_SIZE = 12 // Sync with Context
-    const observerTarget = useRef(null)
-
-    const [stats, setStats] = useState({ likes: 0, comments: 0 })
-
     const supabase = createClient()
+    const observerTarget = useRef(null)
+    const PAGE_SIZE = 12
 
-    // Fetch User & Stats
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUser(user)
         }
         getUser()
-        fetchStats()
     }, [])
 
-    // Load Initial Data ONLY if empty (Cache Strategy)
     useEffect(() => {
         if (entries.length === 0) {
             fetchEntries(0)
         }
     }, [])
 
-    // Intersection Observer for Infinite Scroll
     useEffect(() => {
         const observer = new IntersectionObserver(
-            entriesObs => {
-                if (entriesObs[0].isIntersecting && hasMore && !loading && !loadingMore) {
-                    loadMore()
+            obs => {
+                if (obs[0].isIntersecting && hasMore && !loading && !loadingMore) {
+                    const nextPage = Math.ceil(entries.length / PAGE_SIZE)
+                    fetchEntries(nextPage)
                 }
             },
             { threshold: 1.0 }
         )
+        if (observerTarget.current) observer.observe(observerTarget.current)
+        return () => observer.disconnect()
+    }, [hasMore, loading, loadingMore, entries])
 
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current)
-        }
-
-        return () => {
-            if (observerTarget.current) {
-                observer.unobserve(observerTarget.current)
-            }
-        }
-    }, [observerTarget, hasMore, loading, loadingMore, entries])
-
-    const loadMore = () => {
-        const nextPage = Math.ceil(entries.length / PAGE_SIZE)
-        fetchEntries(nextPage)
-    }
-
-    // Fetch Global Stats
-    const fetchStats = async () => {
-        const { count: likesCount } = await supabase.from('likes').select('*', { count: 'exact', head: true })
-        const { count: commentsCount } = await supabase.from('comments').select('*', { count: 'exact', head: true })
-        setStats({
-            likes: likesCount || 0,
-            comments: commentsCount || 0
-        })
-    }
-
-    // fetchEntries function REMOVED (Handled by Context)
-
-    // Fetch Comments when entry selected
     useEffect(() => {
-        if (selectedEntry) {
-            const fetchComments = async () => {
-                const { data, error } = await supabase
-                    .from('comments')
-                    .select('*')
-                    .eq('diary_id', selectedEntry.id)
-                    .order('created_at', { ascending: true })
-
-                if (data) {
-                    const mappedComments = data.map((c: any) => ({
-                        id: c.id,
-                        username: "User", // Simplification
-                        content: c.content,
-                        created_at: new Date(c.created_at).toLocaleDateString()
-                    }))
-                    setComments(mappedComments)
-                }
-            }
-            fetchComments()
-        } else {
-            setComments([])
+        if (!selectedEntry) {
+            setTranslatedCaption(null)
         }
     }, [selectedEntry])
+
+    const handleTranslate = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!selectedEntry || isTranslating) return
+
+        if (translatedCaption) {
+            setTranslatedCaption(null)
+            return
+        }
+
+        setIsTranslating(true)
+        try {
+            const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(selectedEntry.caption)
+            const targetLang = hasKorean ? 'en' : 'ko'
+
+            const result = await translateText(selectedEntry.caption, targetLang)
+
+            if (result && result !== selectedEntry.caption) {
+                setTranslatedCaption(result)
+            } else {
+                alert(language === 'ko' ? "번역 결과를 가져오지 못했습니다. .env.local의 API 키를 확인해주세요." : "Translation failed. Check your API key in .env.local.")
+            }
+        } catch (error: any) {
+            console.error("Translation fail:", error)
+            alert(language === 'ko'
+                ? `번역 오류: ${error.message || "서버와 통신할 수 없습니다."}`
+                : `Translation Error: ${error.message || "Failed to connect to server."}`)
+        } finally {
+            setIsTranslating(false)
+        }
+    }
 
     const toggleLike = async (e: React.MouseEvent, entry: any) => {
         e.stopPropagation()
         if (!currentUser) return alert(language === 'ko' ? "로그인이 필요합니다." : "Please sign in to like posts")
 
-        // Haptic Feedback for Mobile
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(50);
-        }
-
         const isLiked = entry.isLiked
-        const newIsLiked = !isLiked
-        const newLikes = isLiked ? Math.max(0, entry.likes - 1) : entry.likes + 1
+        toggleLikeInCache(entry.id, !isLiked, isLiked ? entry.likes - 1 : entry.likes + 1)
 
-        // 1. Optimistic UI Update via Context
-        toggleLikeInCache(entry.id, newIsLiked, newLikes)
-
-        // Update Modal State too
-        if (selectedEntry && selectedEntry.id === entry.id) {
-            setSelectedEntry({ ...selectedEntry, isLiked: newIsLiked, likes: newLikes })
+        if (selectedEntry?.id === entry.id) {
+            setSelectedEntry({ ...selectedEntry, isLiked: !isLiked, likes: isLiked ? entry.likes - 1 : entry.likes + 1 })
         }
 
         try {
-            // 2. Background DB Request
             if (isLiked) {
-                const { error } = await supabase.from('likes').delete().match({ diary_id: entry.id, user_id: currentUser.id })
-                if (error) throw error
+                await supabase.from('likes').delete().match({ diary_id: entry.id, user_id: currentUser.id })
             } else {
-                const { error } = await supabase.from('likes').insert({ diary_id: entry.id, user_id: currentUser.id })
-                if (error) throw error
-            }
-
-            // 3. Update Sync Stats
-            fetchStats()
-
-        } catch (error) {
-            console.error("Error toggling like:", error)
-            // Rollback via Context (Flip back)
-            toggleLikeInCache(entry.id, isLiked, entry.likes)
-            if (selectedEntry && selectedEntry.id === entry.id) {
-                setSelectedEntry({ ...selectedEntry, isLiked: isLiked, likes: entry.likes })
-            }
-            alert("Failed to update like. Please try again.")
-        }
-    }
-
-    const handlePostComment = async () => {
-        if (!newComment.trim() || !selectedEntry || !currentUser) return
-
-        try {
-            const { error } = await supabase.from('comments').insert({
-                diary_id: selectedEntry.id,
-                user_id: currentUser.id,
-                content: newComment
-            })
-
-            if (!error) {
-                setNewComment("")
-                await fetchStats() // Refresh Stats
-                // Refresh comments
-                const { data } = await supabase
-                    .from('comments')
-                    .select('*')
-                    .eq('diary_id', selectedEntry.id)
-                    .order('created_at', { ascending: true })
-
-                if (data) {
-                    const mappedComments = data.map((c: any) => ({
-                        id: c.id,
-                        username: "Me",
-                        content: c.content,
-                        created_at: new Date(c.created_at).toLocaleDateString()
-                    }))
-                    setComments(mappedComments)
-                }
+                await supabase.from('likes').insert({ diary_id: entry.id, user_id: currentUser.id })
             }
         } catch (error) {
-            console.error("Error posting comment:", error)
+            console.error("Like error:", error)
         }
     }
 
     const handleShare = async (entry: any) => {
+        const url = `${window.location.origin}/gallery/${entry.userId}`
         if (typeof navigator !== 'undefined' && navigator.share) {
             try {
-                await navigator.share({
-                    title: 'Doodle Log - AI Picture Diary',
-                    text: `Check out this AI drawing: ${entry.caption.split('\n')[0]}`,
-                    url: `${window.location.origin}/gallery/${entry.userId}`
-                });
-            } catch (err) {
-                console.warn('Share failed:', err);
-            }
+                await navigator.share({ title: 'Doodle Log', url })
+            } catch (err) { console.warn(err) }
         } else {
-            // Fallback: Copy to clipboard
-            navigator.clipboard.writeText(`${window.location.origin}/gallery/${entry.userId}`);
-            alert(language === 'ko' ? "링크가 복사되었습니다!" : "Link copied to clipboard!");
+            navigator.clipboard.writeText(url)
+            alert(language === 'ko' ? "복사되었습니다!" : "Link copied!")
         }
     }
 
-    // Close modal
-    useEffect(() => {
-        const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setSelectedEntry(null)
-        }
-        window.addEventListener("keydown", handleEsc)
-        return () => window.removeEventListener("keydown", handleEsc)
-    }, [])
-
-
-
     return (
-        <div className="container max-w-5xl py-8 px-4 mx-auto pb-24">
-            {/* Page Header */}
-            <div className="flex justify-between items-center mb-2 md:mb-4">
-                <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                    {language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}
-                </h1>
-            </div>
+        <div className="container max-w-5xl py-8 px-4 mx-auto pb-24 text-foreground">
+            <h1 className="text-2xl md:text-3xl font-bold font-gaegu mb-6">
+                {language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}
+            </h1>
 
-
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4"> {/* Changed gap to 2 for mobile, 4 for desktop */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {loading && entries.length === 0 ? (
-                    Array.from({ length: 10 }).map((_, i) => (
-                        <div key={i} className="bg-card flex flex-col h-full rounded-md border border-border overflow-hidden">
-                            <div className="aspect-square animate-shimmer" />
-                            <div className="p-3 flex flex-col gap-2">
-                                <div className="h-3 animate-shimmer rounded w-1/3" />
-                                <div className="h-4 animate-shimmer rounded w-full" />
-                                <div className="h-4 animate-shimmer rounded w-2/3" />
-                            </div>
-                        </div>
+                    Array.from({ length: 15 }).map((_, i) => (
+                        <div key={i} className="aspect-square animate-shimmer bg-muted/40 rounded-xl" />
                     ))
                 ) : (
                     entries.map((entry, index) => (
                         <TiltCard
                             key={entry.id}
                             onClick={() => setSelectedEntry(entry)}
-                            className="group relative cursor-pointer bg-card flex flex-col h-full hover:z-10 shadow-sm border border-border overflow-hidden rounded-md"
+                            className="cursor-pointer bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                         >
-                            <div className="relative aspect-square w-full bg-muted">
-                                <Image
-                                    src={entry.imageUrl}
-                                    alt="Diary Entry"
-                                    fill
-                                    className="object-cover transition-transform duration-500 group-hover:scale-110" // Inner zoom
-                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-                                    priority={index < 6}
-                                    quality={75}
-                                />
-                            </div>
-                            <div className="p-3 bg-card flex flex-col justify-between flex-1">
-                                <div>
-                                    <p className="text-xs font-bold text-muted-foreground mb-1">{entry.date}</p>
-                                    <div className="text-sm font-handwriting text-foreground line-clamp-2 leading-snug">
-                                        {(() => {
-                                            let title = ""
-                                            let body = ""
-                                            const parts = entry.caption.split(/\r?\n/)
-                                            if (parts.length > 1) {
-                                                title = parts[0]
-                                                body = parts.slice(1).join(' ')
-                                            } else {
-                                                const bracketIndex = entry.caption.indexOf(']')
-                                                if (bracketIndex !== -1 && bracketIndex < entry.caption.length - 1) {
-                                                    title = entry.caption.slice(0, bracketIndex + 1)
-                                                    body = entry.caption.slice(bracketIndex + 1)
-                                                } else {
-                                                    title = entry.caption
-                                                    body = ""
-                                                }
-                                            }
-                                            // Clean brackets
-                                            title = title.replace(/^\[|\]$/g, '')
-
-                                            return (
-                                                <>
-                                                    <span className="font-bold text-base mr-1">{title}</span>
-                                                    <span className="opacity-80">{body}</span>
-                                                </>
-                                            )
-                                        })()}
-                                    </div>
+                            <div className="relative aspect-square">
+                                <Image src={entry.imageUrl} alt="Diary" fill className="object-cover" sizes="25vw" priority={index < 8} />
+                                <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/40 backdrop-blur-sm rounded-full text-[9px] text-white font-bold tracking-tight">
+                                    {entry.date}
                                 </div>
-                                <div className="flex items-center gap-1 mt-3 text-muted-foreground">
-                                    <Heart
-                                        size={14}
-                                        className={entry.isLiked ? "fill-red-500 text-red-500" : ""}
-                                    />
-                                    <span className="text-xs">{entry.likes}</span>
+                            </div>
+                            <div className="p-3">
+                                <div className="text-sm font-handwriting line-clamp-1 text-foreground/90">
+                                    {entry.caption.split('\n')[0].replace(/^\[|\]$/g, '')}
+                                </div>
+                                <div className="flex items-center gap-1 mt-2 text-muted-foreground">
+                                    <Heart size={12} className={entry.isLiked ? "fill-red-500 text-red-500" : ""} />
+                                    <span className="text-[10px] font-bold">{entry.likes}</span>
                                 </div>
                             </div>
                         </TiltCard>
                     ))
                 )}
-
-                {/* Sentinel for Infinite Scroll */}
-                <div ref={observerTarget} className="col-span-2 md:col-span-4 lg:col-span-5 h-20 flex items-center justify-center p-4">
-                    {loadingMore && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>}
+                <div ref={observerTarget} className="col-span-full h-20 flex justify-center items-center">
+                    {loadingMore && <Loader2 className="animate-spin text-primary" size={24} />}
                 </div>
             </div>
 
-            {/* Floating Action Button for New Diary */}
             <button
                 onClick={() => router.push('/journal/new')}
-                className="fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-[#FF8BA7]/80 md:bg-[#FF8BA7]/60 backdrop-blur-sm text-white p-3 md:p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 flex items-center justify-center group"
-                aria-label="Write New Diary"
+                className="fixed bottom-8 right-8 bg-primary text-white p-4 rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all z-40 group"
             >
-                <Plus size={28} className="md:w-8 md:h-8 group-hover:rotate-90 transition-transform drop-shadow-md" />
+                <Plus size={28} className="group-hover:rotate-90 transition-transform" />
             </button>
 
             {selectedEntry && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={() => setSelectedEntry(null)}>
-                    <div
-                        className="bg-card w-full max-w-sm md:max-w-4xl md:w-full max-h-[85vh] md:max-h-[90vh] flex flex-col md:flex-row rounded-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Left: Image (Square) */}
-                        <div className="w-full md:w-3/5 relative bg-black flex-shrink-0 flex justify-center items-center md:block md:aspect-square">
-                            <div className="relative w-full aspect-square md:h-full md:w-full">
-                                <Image src={selectedEntry.imageUrl} alt="Detail" fill className="object-cover" />
-                            </div>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setSelectedEntry(null)}>
+                    <div className="bg-card w-full max-w-sm md:max-w-4xl flex flex-col md:flex-row rounded-xl overflow-hidden shadow-3xl border border-white/5" onClick={e => e.stopPropagation()}>
+
+                        {/* 1:1 Image Side with Cinematic Blur Background (NEVER CROP) */}
+                        <div className="w-full md:w-3/5 bg-black flex items-center justify-center relative aspect-square overflow-hidden">
+                            {/* Blurred BG to fill edges */}
+                            <Image
+                                src={selectedEntry.imageUrl}
+                                alt="Doodle Blur"
+                                fill
+                                className="object-cover blur-3xl opacity-50 scale-105"
+                            />
+                            {/* Sharp foreground - never cropped */}
+                            <Image
+                                src={selectedEntry.imageUrl}
+                                alt="Doodle Full"
+                                fill
+                                className="object-contain relative z-10"
+                                priority
+                            />
                         </div>
 
-                        {/* Right: Details */}
-                        <div className="w-full md:w-2/5 flex flex-col flex-1 min-h-0 md:h-auto text-card-foreground">
-                            {/* Header with Author - UPDATED */}
-                            <div className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
-                                <div
-                                    className="flex items-center gap-3 cursor-pointer hover:bg-muted p-1.5 rounded-lg transition-colors -ml-2 select-none"
-                                    onClick={() => router.push(`/gallery/${selectedEntry.userId}`)}
-                                    title="View Author's Gallery"
-                                >
-                                    <div className="w-9 h-9 rounded-full bg-muted overflow-hidden border border-border shadow-sm flex-shrink-0">
-                                        <img
-                                            src={selectedEntry.author?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${selectedEntry.userId}`}
-                                            alt="Author"
-                                            className="w-full h-full object-cover"
-                                        />
+                        {/* Info Side */}
+                        <div className="w-full md:w-2/5 flex flex-col h-full bg-card">
+                            <div className="p-4 border-b border-border flex justify-between items-center bg-card">
+                                <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push(`/gallery/${selectedEntry.userId}`)}>
+                                    <div className="w-8 h-8 rounded-full bg-muted overflow-hidden border border-border shadow-sm">
+                                        <img src={selectedEntry.author?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${selectedEntry.userId}`} alt="Avatar" className="w-full h-full object-cover" />
                                     </div>
-                                    <div className="flex flex-col justify-center">
-                                        <span className="font-bold text-sm text-foreground leading-tight">
-                                            {selectedEntry.author?.username || `User_${selectedEntry.userId.slice(0, 4)}`}
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground font-medium">View Gallery</span>
-                                    </div>
+                                    <span className="font-bold text-sm text-foreground">{selectedEntry.author?.username || "Doodle User"}</span>
                                 </div>
-                                <button onClick={() => setSelectedEntry(null)} className="text-muted-foreground hover:text-foreground transition-colors"><X size={24} /></button>
+                                <button onClick={() => setSelectedEntry(null)} className="text-muted-foreground hover:text-foreground p-1"><X size={20} /></button>
                             </div>
 
-                            {/* Comments Area */}
-                            <div className="p-4 flex-1 overflow-y-auto">
+                            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
+                                {(() => {
+                                    const displayCaption = translatedCaption || selectedEntry.caption
+                                    const parts = displayCaption.split(/\r?\n/)
+                                    const title = parts[0].replace(/^\[|\]$/g, '')
+                                    const body = parts.slice(1).join('\n')
+                                    return (
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <h2 className="text-xl font-bold font-handwriting leading-tight text-foreground">{title}</h2>
+                                                {body && <p className="text-lg font-handwriting italic text-foreground/80 whitespace-pre-wrap leading-relaxed">{body}</p>}
 
-                                <div className="flex gap-3 mb-6">
-                                    <div className="text-sm w-full">
-                                        <div className="flex flex-col w-full gap-1">
-                                            {(() => {
-                                                let title = ""
-                                                let body = ""
-
-                                                // 1. Try splitting by newline
-                                                const parts = selectedEntry.caption.split(/\r?\n/)
-
-                                                if (parts.length > 1) {
-                                                    title = parts[0]
-                                                    body = parts.slice(1).join('\n').trim()
-                                                } else {
-                                                    // 2. No newline? Try splitting by closing bracket ']' if present (e.g. "[Title] Body")
-                                                    const raw = selectedEntry.caption
-                                                    const bracketIndex = raw.indexOf(']')
-
-                                                    if (bracketIndex !== -1 && bracketIndex < raw.length - 1) {
-                                                        title = raw.slice(0, bracketIndex + 1).trim()
-                                                        body = raw.slice(bracketIndex + 1).trim()
-                                                    } else {
-                                                        // 3. Fallback: Treat everything as Body (or Title if short? Let's just create a Title block)
-                                                        // Actually, if it's just one chunk, let's treat it as Body to look normal, 
-                                                        // OR just show it all in the title block if it's short.
-                                                        // User wants separation. Let's act smart.
-                                                        title = raw
-                                                        body = ""
-                                                    }
-                                                }
-
-                                                // Clean up brackets from title for display if they exist (Legacy support)
-                                                title = title.replace(/^\[|\]$/g, '')
-
-                                                return (
-                                                    <>
-                                                        <div className="font-bold text-xl leading-snug text-foreground">
-                                                            {title}
-                                                        </div>
-                                                        {body && (
-                                                            <div className="text-lg leading-relaxed whitespace-pre-wrap text-foreground/80">
-                                                                {body}
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )
-                                            })()}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground mt-4 font-handwriting text-right border-t border-border pt-2">{selectedEntry.date}</div>
-                                    </div>
-                                </div>
-
-                                { /* Comments Section Hidden for now */}
-                                {/* <div className="space-y-4">
-                                    {comments.map((comment) => (
-                                        <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0 flex items-center justify-center text-xs font-bold text-muted-foreground">
-                                                {comment.username[0]}
+                                                <button
+                                                    onClick={handleTranslate}
+                                                    disabled={isTranslating}
+                                                    className="mt-2 text-[11px] font-bold text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5"
+                                                >
+                                                    {isTranslating ? (
+                                                        <Loader2 size={11} className="animate-spin" />
+                                                    ) : (
+                                                        <Languages size={11} />
+                                                    )}
+                                                    {translatedCaption ? (
+                                                        /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(selectedEntry.caption) ? 'See Original' : '원문 보기'
+                                                    ) : (
+                                                        /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(selectedEntry.caption) ? 'See Translation' : '번역 보기'
+                                                    )}
+                                                </button>
                                             </div>
-                                            <div className="text-sm">
-                                                <span className="font-bold mr-2 text-foreground">{comment.username}</span>
-                                                <span className="text-muted-foreground">{comment.content}</span>
-                                                <div className="text-xs text-muted-foreground mt-1">{comment.created_at}</div>
+                                            <div className="text-[10px] text-muted-foreground mt-8 font-bold text-right pt-3 border-t border-border/40 uppercase tracking-widest">
+                                                {selectedEntry.date}
                                             </div>
                                         </div>
-                                    ))}
-                                    {comments.length === 0 && (
-                                        <div className="text-center text-muted-foreground text-sm py-8">No comments yet. Be the first!</div>
-                                    )}
-                                </div> */}
+                                    )
+                                })()}
                             </div>
 
-                            {/* Action Bar */}
-                            <div className="p-4 border-t border-border bg-card flex-shrink-0">
-                                <div className="flex justify-between mb-3">
-                                    <div className="flex gap-4">
-                                        <button
-                                            onClick={(e) => toggleLike(e, selectedEntry)}
-                                            className={`${selectedEntry.isLiked ? 'heart-pop' : ''}`}
-                                        >
-                                            <Heart className={`transition-colors ${selectedEntry.isLiked ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-foreground"}`} size={24} />
-                                        </button>
-                                        <button onClick={() => handleShare(selectedEntry)}>
-                                            <Send className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors" size={24} />
-                                        </button>
-                                    </div>
-
-                                </div>
-                                <div className="font-bold text-sm mb-1">{selectedEntry.likes} likes</div>
-
-                                {/* Comment Input Hidden */}
-                                {/* <div className="flex gap-2 mt-3 border-t border-border pt-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Add a comment..."
-                                        className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground text-foreground"
-                                        value={newComment}
-                                        onChange={(e) => setNewComment(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
-                                    />
-                                    <button
-                                        className="text-blue-500 font-bold text-sm disabled:opacity-50"
-                                        disabled={!newComment.trim()}
-                                        onClick={handlePostComment}
-                                    >
-                                        Post
+                            <div className="p-4 border-t border-border bg-muted/5 flex justify-between items-center">
+                                <div className="flex gap-4">
+                                    <button onClick={e => toggleLike(e, selectedEntry)} className="hover:scale-110 active:scale-125 transition-transform">
+                                        <Heart size={24} className={selectedEntry.isLiked ? "fill-red-500 text-red-500" : "text-muted-foreground"} />
                                     </button>
-                                </div> */}
+                                    <button onClick={() => handleShare(selectedEntry)} className="hover:scale-110 transition-transform">
+                                        <Send size={24} className="text-muted-foreground" />
+                                    </button>
+                                </div>
+                                <span className="font-bold text-xs text-muted-foreground">{selectedEntry.likes} likes</span>
                             </div>
                         </div>
                     </div>
