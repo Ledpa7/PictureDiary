@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-    const baseUrl = 'https://ai-picture-diary.vercel.app' // Todo: Update with actual domain
+    const baseUrl = 'https://ai-picture-diary.vercel.app'
 
     return [
         {
@@ -14,18 +14,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
             url: `${baseUrl}/gallery`,
             lastModified: new Date(),
             changeFrequency: 'hourly',
-            priority: 0.8,
-        },
-        {
-            url: `${baseUrl}/journal/new`,
-            lastModified: new Date(),
-            changeFrequency: 'monthly',
-            priority: 0.5,
+            priority: 0.9,
         },
         {
             url: `${baseUrl}/privacy`,
             lastModified: new Date(),
-            changeFrequency: 'yearly',
+            changeFrequency: 'monthly',
             priority: 0.3,
         },
     ]

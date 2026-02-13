@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
-import { Plus, Heart, MessageCircle, Bookmark, X, Edit2 } from "lucide-react"
+import { Plus, Heart, MessageCircle, Bookmark, X, Edit2, Send } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useParams, useRouter } from "next/navigation"
 import TiltCard from "@/components/TiltCard"
@@ -298,6 +298,11 @@ export default function UserGalleryPage() {
         e.stopPropagation()
         if (!currentUser) return alert("Please sign in to like posts")
 
+        // Haptic Feedback for Mobile
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+
         // 1. Optimistic UI Update
         const originalEntries = [...entries] // Backup for rollback
         const originalSelected = selectedEntry ? { ...selectedEntry } : null
@@ -375,6 +380,24 @@ export default function UserGalleryPage() {
             }
         } catch (error) {
             console.error("Error posting comment:", error)
+        }
+    }
+
+    const handleShare = async (entry: any) => {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Doodle Log - AI Picture Diary',
+                    text: `Check out this AI drawing: ${entry.caption.split('\n')[0]}`,
+                    url: `${window.location.origin}/gallery/${entry.userId}`
+                });
+            } catch (err) {
+                console.warn('Share failed:', err);
+            }
+        } else {
+            // Fallback: Copy to clipboard
+            navigator.clipboard.writeText(`${window.location.origin}/gallery/${entry.userId}`);
+            alert("Link copied to clipboard!");
         }
     }
 
@@ -670,8 +693,14 @@ export default function UserGalleryPage() {
                             <div className="p-4 border-t border-border bg-card flex-shrink-0">
                                 <div className="flex justify-between mb-3">
                                     <div className="flex gap-4">
-                                        <button onClick={(e) => toggleLike(e, selectedEntry)}>
+                                        <button
+                                            onClick={(e) => toggleLike(e, selectedEntry)}
+                                            className={`${selectedEntry.isLiked ? 'heart-pop' : ''}`}
+                                        >
                                             <Heart className={`transition-colors ${selectedEntry.isLiked ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-foreground"}`} size={24} />
+                                        </button>
+                                        <button onClick={() => handleShare(selectedEntry)}>
+                                            <Send className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors" size={24} />
                                         </button>
                                     </div>
 

@@ -111,97 +111,51 @@ export default function NewEntryPage() {
             return
         }
 
-        const isLocal = false; // FORCE CHECK for testing (In production, use proper logic)
-
-        if (!isLocal) {
-            console.log("[Debug] Checking Daily Limit for User:", user.email);
-
-            let userLevel = 1;
-
-            // 1. Get User Level (Defensive)
-            try {
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('level')
-                    .eq('id', user.id)
-                    .maybeSingle()
-
-                if (profileError) {
-                    console.warn("[Debug] Profile fetch error (Using Default Level 1):", profileError.message);
-                } else if (profile) {
-                    userLevel = profile.level ?? 1;
-                }
-            } catch (err) {
-                console.error("[Debug] Unexpected error fetching profile:", err);
-                userLevel = 1;
-            }
-
-            const isPremium = userLevel >= 100
-            const dailyLimit = isPremium ? 100 : 1
-
-            console.log(`[Debug] User Level: ${userLevel} (Premium: ${isPremium}), Limit: ${dailyLimit}`);
-
-            // 2. Check Usage
-            try {
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
-
-                const { count, error: countError } = await supabase
-                    .from('diaries')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', user.id)
-                    .gte('created_at', today.toISOString())
-
-                console.log(`[Debug] Today's Entries: ${count}`);
-
-                if (countError) {
-                    console.error("Limit check failed:", countError)
-                    setErrorMessage(language === 'ko' ? "작성 가능 여부 확인 실패" : "Failed to check limits")
-                    setIsGenerating(false)
-                    return
-                }
-
-                if (count !== null && count >= dailyLimit) {
-                    console.warn("[Debug] Daily limit reached!");
-                    if (!isPremium) {
-                        setErrorMessage(language === 'ko'
-                            ? "현재는 하루에 한 번만 작성할 수 있습니다."
-                            : "Currently, you can only create one diary per day.")
-                    } else {
-                        setErrorMessage(language === 'ko'
-                            ? `일일 작성 한도(${dailyLimit}회)를 초과했습니다.`
-                            : `Daily limit of ${dailyLimit} entries reached.`)
-                    }
-                    setIsGenerating(false)
-                    return
-                }
-            } catch (err) {
-                console.error("Usage check error:", err)
-            }
-        }
-
         try {
-            // 1. Generate Image
+            // --- Gemini Nano (Chrome Built-in AI) Optimization ---
+            let localRefinedPrompt = "";
             const promptContext = `Weather: ${weather}, Title: ${title}, Story: ${story}`
+
+            try {
+                // Check if Chrome's window.ai (Prompt API) is available
+                // @ts-ignore - window.ai is experimental
+                if (typeof window !== 'undefined' && window.ai && window.ai.languageModel) {
+                    console.log("[Gemini Nano] Local AI detected. Attempting refinement...");
+                    // @ts-ignore
+                    const capabilities = await window.ai.languageModel.capabilities();
+
+                    if (capabilities.available !== 'no') {
+                        // @ts-ignore
+                        const session = await window.ai.languageModel.create({
+                            systemPrompt: "You are an expert art director. Convert a diary entry into a detailed English image prompt. Style: Soft, hand-drawn art style, colored pencils/crayons, warm texture. Output only the prompt."
+                        });
+
+                        localRefinedPrompt = await session.prompt(`Diary Entry: "${promptContext}"\n\nImage Prompt:`);
+                        session.destroy();
+                        console.log("[Gemini Nano] Prompt refined locally:", localRefinedPrompt);
+                    }
+                }
+            } catch (localAiError) {
+                console.warn("[Gemini Nano] Local refinement failed, falling back to server:", localAiError);
+            }
+
+            // 1. Generate Image (Pass localRefinedPrompt if available)
             const response = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: promptContext }),
+                body: JSON.stringify({
+                    prompt: promptContext,
+                    preRefinedPrompt: localRefinedPrompt // Pass the locally generated prompt
+                }),
             })
 
             const data = await response.json()
-            console.log('Generate Image Response Data:', data)
-
-            if (!response.ok) {
-                throw new Error(data.error || "Failed to generate image")
-            }
+            if (!response.ok) throw new Error(data.error || "Failed to generate image")
 
             setGeneratedImage(data.imageUrl)
 
             // 2. Save to Supabase Immediately
-            // Use full content: Title + Newline + Story (No brackets)
             const fullContent = `${title}\n${story}`
-
             const { error } = await supabase
                 .from('diaries')
                 .insert({
@@ -212,11 +166,7 @@ export default function NewEntryPage() {
                 })
 
             if (error) throw error
-
-            // 3. Refresh Gallery Cache
             refresh()
-
-            // 4. Redirect
             router.push("/gallery")
 
         } catch (error: any) {

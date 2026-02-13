@@ -144,6 +144,11 @@ export default function GalleryPage() {
         e.stopPropagation()
         if (!currentUser) return alert(language === 'ko' ? "로그인이 필요합니다." : "Please sign in to like posts")
 
+        // Haptic Feedback for Mobile
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+
         const isLiked = entry.isLiked
         const newIsLiked = !isLiked
         const newLikes = isLiked ? Math.max(0, entry.likes - 1) : entry.likes + 1
@@ -215,6 +220,24 @@ export default function GalleryPage() {
         }
     }
 
+    const handleShare = async (entry: any) => {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Doodle Log - AI Picture Diary',
+                    text: `Check out this AI drawing: ${entry.caption.split('\n')[0]}`,
+                    url: `${window.location.origin}/gallery/${entry.userId}`
+                });
+            } catch (err) {
+                console.warn('Share failed:', err);
+            }
+        } else {
+            // Fallback: Copy to clipboard
+            navigator.clipboard.writeText(`${window.location.origin}/gallery/${entry.userId}`);
+            alert(language === 'ko' ? "링크가 복사되었습니다!" : "Link copied to clipboard!");
+        }
+    }
+
     // Close modal
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -240,11 +263,11 @@ export default function GalleryPage() {
                 {loading && entries.length === 0 ? (
                     Array.from({ length: 10 }).map((_, i) => (
                         <div key={i} className="bg-card flex flex-col h-full rounded-md border border-border overflow-hidden">
-                            <div className="aspect-square bg-muted animate-pulse" />
+                            <div className="aspect-square animate-shimmer" />
                             <div className="p-3 flex flex-col gap-2">
-                                <div className="h-3 bg-muted rounded w-1/3 animate-pulse" />
-                                <div className="h-4 bg-muted rounded w-full animate-pulse" />
-                                <div className="h-4 bg-muted rounded w-2/3 animate-pulse" />
+                                <div className="h-3 animate-shimmer rounded w-1/3" />
+                                <div className="h-4 animate-shimmer rounded w-full" />
+                                <div className="h-4 animate-shimmer rounded w-2/3" />
                             </div>
                         </div>
                     ))
@@ -444,10 +467,15 @@ export default function GalleryPage() {
                             <div className="p-4 border-t border-border bg-card flex-shrink-0">
                                 <div className="flex justify-between mb-3">
                                     <div className="flex gap-4">
-                                        <button onClick={(e) => toggleLike(e, selectedEntry)}>
+                                        <button
+                                            onClick={(e) => toggleLike(e, selectedEntry)}
+                                            className={`${selectedEntry.isLiked ? 'heart-pop' : ''}`}
+                                        >
                                             <Heart className={`transition-colors ${selectedEntry.isLiked ? "fill-red-500 text-red-500" : "text-muted-foreground hover:text-foreground"}`} size={24} />
                                         </button>
-                                        {/* <MessageCircle className="cursor-pointer text-muted-foreground hover:text-foreground" size={24} /> */}
+                                        <button onClick={() => handleShare(selectedEntry)}>
+                                            <Send className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors" size={24} />
+                                        </button>
                                     </div>
 
                                 </div>

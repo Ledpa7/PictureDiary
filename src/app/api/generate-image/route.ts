@@ -43,6 +43,36 @@ async function refinePromptWithPaLM(instructions: string, originalPrompt: string
     return refinedPrompt.trim();
 }
 
+// Helper: Refine Prompt with Google AI Studio (Free Tier)
+async function refinePromptWithAIStudio(originalPrompt: string, apiKey: string) {
+    const model = 'gemini-2.0-flash-lite';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const instructions = `
+    You are an expert art director optimizing prompts for AI image generation.
+    Your task is to convert a user's diary entry into a detailed English image prompt.
+    CRITICAL: Output ONLY the English prompt in one paragraph.
+    Style: Soft, hand-drawn art style using colored pencils or crayons, warm and nostalgic texture.
+    `;
+
+    console.log('[DEBUG] Calling Google AI Studio (Free Tier)...');
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: `${instructions}\n\nDiary Entry: "${originalPrompt}"\n\nImage Prompt:` }] }]
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`AI Studio Failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+}
+
 async function refinePromptWithGemini(originalPrompt: string, accessToken: string, projectId: string) {
     const location = 'us-central1';
     // List of models to try in order of preference (Prioritizing Flash Lite as requested)
@@ -137,15 +167,17 @@ async function refinePromptWithGemini(originalPrompt: string, accessToken: strin
 }
 
 // Helper: Generate Image with Imagen 2 (Stable)
-// Helper: Generate Image with Stability AI (Cost-effective)
+// Helper: Generate Image with Stability AI (Cost-optimized)
 async function generateImageWithStabilityAI(prompt: string) {
+    // Optimization: Using 'sdxl-turbo' or reducing steps on SDXL 1.0 can save significant credits.
+    // For "crayon/pencil" style, 20 steps is more than enough for SDXL 1.0.
     const engineId = 'stable-diffusion-xl-1024-v1-0';
     const apiKey = process.env.STABILITY_API_KEY;
     const apiHost = 'https://api.stability.ai';
 
     if (!apiKey) throw new Error("Missing STABILITY_API_KEY");
 
-    console.log(`[DEBUG] Generating with Stability AI (${engineId})...`);
+    console.log(`[DEBUG] Generating with Stability AI (Optimized Steps)...`);
 
     const response = await fetch(`${apiHost}/v1/generation/${engineId}/text-to-image`, {
         method: 'POST',
@@ -165,7 +197,7 @@ async function generateImageWithStabilityAI(prompt: string) {
             height: 1024,
             width: 1024,
             samples: 1,
-            steps: 30,
+            steps: 15, // Reduced from 30: Saves 50% credits with negligible quality loss for this style
         }),
     });
 
@@ -293,8 +325,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Daily limit reached (1 diary per day)' }, { status: 403 });
         }
 
-        const { prompt: imagePrompt } = await request.json();
-        if (!imagePrompt) {
+        const { prompt: imagePrompt, preRefinedPrompt } = await request.json();
+        if (!imagePrompt && !preRefinedPrompt) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
 
@@ -353,16 +385,36 @@ export async function POST(request: Request) {
 
         if (!token) throw new Error("Failed to retrieve access token");
 
-        console.log('Original Prompt:', imagePrompt);
+        // 1. Refine Prompt (Skip if already refined by client like Gemini Nano)
+        let refinedPrompt = preRefinedPrompt;
 
-        // 1. Refine Prompt (Try Flash Lite, Fallback to others)
-        let refinedPrompt;
-        try {
-            refinedPrompt = await refinePromptWithGemini(imagePrompt, token!, projectId!);
-            console.log('Refined Prompt:', refinedPrompt);
-        } catch (e) {
-            console.error('Prompt Refinement Failed:', e);
-            throw e; // Hard fail as requested
+        if (!refinedPrompt) {
+            console.log('Original Prompt:', imagePrompt); // Log original prompt only if refinement is needed
+            const aiStudioKey = process.env.GEMINI_API_KEY;
+            try {
+                if (aiStudioKey) {
+                    refinedPrompt = await refinePromptWithAIStudio(imagePrompt, aiStudioKey);
+                } else {
+                    // Logic for Vertex AI (Keep existing fallback)
+                    const authOptions: any = {
+                        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+                    };
+                    if (process.env.GOOGLE_CREDENTIALS_JSON) {
+                        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON.replace(/\\n/g, '\n'));
+                        authOptions.credentials = credentials;
+                    }
+                    const auth = new GoogleAuth(authOptions);
+                    const client = await auth.getClient();
+                    const accessToken = await client.getAccessToken();
+                    refinedPrompt = await refinePromptWithGemini(imagePrompt, accessToken.token!, projectId!);
+                }
+                console.log('Refined Prompt:', refinedPrompt);
+            } catch (e: any) {
+                console.error('Prompt Refinement Failed:', e);
+                throw e;
+            }
+        } else {
+            console.log('Using Pre-Refined Prompt (Gemini Nano):', refinedPrompt);
         }
 
         // 2. Generate Image (Switched to Stability AI for cost)
@@ -370,7 +422,7 @@ export async function POST(request: Request) {
         try {
             // === STABILITY AI (Active) ===
             imageUrl = await generateImageWithStabilityAI(refinedPrompt);
-            console.log('Image Generated (Stability AI)');
+            console.log('Image Generated');
 
             // === IMAGEN (Commented Out) ===
             // imageUrl = await generateImageWithImagen(refinedPrompt, token, projectId);
