@@ -404,17 +404,8 @@ export async function POST(request: Request) {
             // Fallback to Vertex AI if AI Studio failed or key is missing
             if (!refinedPrompt) {
                 try {
-                    const authOptions: any = {
-                        scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-                    };
-                    if (process.env.GOOGLE_CREDENTIALS_JSON) {
-                        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON.replace(/\\n/g, '\n'));
-                        authOptions.credentials = credentials;
-                    }
-                    const auth = new GoogleAuth(authOptions);
-                    const client = await auth.getClient();
-                    const accessToken = await client.getAccessToken();
-                    refinedPrompt = await refinePromptWithGemini(imagePrompt, accessToken.token!, projectId!);
+                    // Reuse the token we already got at the top of the function
+                    refinedPrompt = await refinePromptWithGemini(imagePrompt, token!, projectId!);
                 } catch (vertexError: any) {
                     console.error('All Prompt Refinement methods failed:', vertexError);
                     throw vertexError;
