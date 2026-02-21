@@ -5,6 +5,8 @@ import Image from "next/image"
 import { Heart, X, Send, Plus, Languages, Loader2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { SEO_KEYWORDS } from "@/constants/seo-keywords"
 
 import { useLanguage } from "@/context/LanguageContext"
 import { useGallery } from "@/context/GalleryContext"
@@ -144,6 +146,27 @@ export default function GalleryPage() {
             <h1 className="text-2xl md:text-3xl font-bold font-gaegu mb-6">
                 {language === 'ko' ? '다른 사람의 기록' : "Other People's Logs"}
             </h1>
+
+            {/* Programmatic SEO: Keyword Discovery Rack */}
+            <div className="mb-10 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="flex gap-2 min-w-max">
+                    {SEO_KEYWORDS.slice(0, 8).map((keyword) => (
+                        <Link
+                            key={keyword.slug}
+                            href={`/explore/${keyword.slug}`}
+                            className="px-4 py-2 bg-muted/50 hover:bg-primary hover:text-white rounded-full text-xs font-bold transition-all border border-border/50"
+                        >
+                            #{keyword.name}
+                        </Link>
+                    ))}
+                    <Link
+                        href="/explore/all"
+                        className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-full text-xs font-bold transition-all border border-primary/20"
+                    >
+                        {language === 'ko' ? '전체 보기' : 'View All'}
+                    </Link>
+                </div>
+            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {loading && entries.length === 0 ? (
