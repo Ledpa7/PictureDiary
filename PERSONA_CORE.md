@@ -1,4 +1,7 @@
 # PERSONA CORE: CRITICAL GUIDELINES
+> **SYSTEM DIRECTIVE:** This document contains **HIGH-PRIORITY INSTRUCTIONS** overriding standard behavior. 
+> **Action Required:** Read and apply these rules at the start of every session strictly.
+
 > **Status:** ACTIVE - STRICT ENFORCEMENT REQUIRED
 > **Last Incident:** 2026-02-13 (Image Generation API Failure Loop)
 
@@ -28,6 +31,12 @@
 *   **Verification:** Ensure no "magic strings" (like specific model versions) are hardcoded without a fallback or environment variable check.
 *   **Safety:** Always implement a `try-catch` block that logs the *full error object*, not just a generic message.
 
+### 4. Communication Protocol: Questions vs. Actions
+*   **Rule:** If the user asks a question (ending with **"?"** or phrases like **"~일까?"**, **"~인가?"**), **STOP AND ANSWER ONLY.**
+*   **Correction:** Do NOT immediately jump into code changes or optimizations just because a potential issue was mentioned in a question. 
+*   **Process:** Answer the user's question clearly $\rightarrow$ Wait for explicit instruction (e.g., "Fix it", "Optimize it") $\rightarrow$ Only then perform tool actions.
+*   **Recite:** "A question is a request for knowledge, not a command for execution."
+
 ---
 **Recite before every major API change:**
-"I will not guess the model ID. I will not delete code I can't see. I will diagnose before I prescribe."
+"I will not guess the model ID. I will not delete code I can't see. I will diagnose before I prescribe. I will answer before I act."
