@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link";
-import { Search, X, Globe, LogOut } from "lucide-react";
+import { Search, X, Globe, LogOut, Menu } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { User } from "@supabase/supabase-js";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
@@ -14,12 +14,13 @@ export function Header() {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<{ id: string; username: string; avatar_url: string; description?: string }[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const router = useRouter();
     const pathname = usePathname();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
     const { language } = useLanguage();
 
     useEffect(() => {
@@ -66,25 +67,22 @@ export function Header() {
         setIsMenuOpen(false);
     }, [pathname]);
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         await supabase.auth.signOut();
         setUser(null);
         setAvatarUrl(null);
-        setIsMenuOpen(false); // Close mobile menu if open
+        setIsMenuOpen(false);
         router.push("/");
-    };
+    }, [supabase, router]);
 
-    const handleLogin = async () => {
+    const handleLogin = useCallback(async () => {
         try {
             const redirectUrl = `${location.origin}/auth/callback?next=/gallery`;
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: redirectUrl,
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent',
-                    },
+                    queryParams: { access_type: 'offline', prompt: 'consent' },
                 },
             });
             if (error) throw error;
@@ -92,30 +90,34 @@ export function Header() {
             console.error('Login Error:', error);
             alert((language === 'ko' ? '로그인 오류가 발생했습니다: ' : 'Login Error: ') + error.message);
         }
-    };
+    }, [supabase, language]);
 
-    const handleSearch = async (query: string) => {
+    // Debounced search - prevents a Supabase query on every single keystroke
+    const handleSearch = useCallback((query: string) => {
         setSearchQuery(query);
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
         if (query.trim().length === 0) {
             setSearchResults([]);
             return;
         }
 
-        setIsSearching(true);
-        try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .ilike('username', `%${query}%`)
-                .limit(5);
-
-            if (data) setSearchResults(data);
-        } catch (error) {
-            console.error("Search error:", error);
-        } finally {
-            setIsSearching(false);
-        }
-    };
+        searchDebounceRef.current = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('id, username, avatar_url, description')
+                    .ilike('username', `%${query}%`)
+                    .limit(5);
+                if (data) setSearchResults(data);
+            } catch (error) {
+                console.error("Search error:", error);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+    }, [supabase]);
 
     return (
         <>
@@ -181,8 +183,7 @@ export function Header() {
                                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                                 className="p-2 text-foreground hover:opacity-70 transition-opacity"
                             >
-                                {isMenuOpen ? <X size={24} /> : <Search className="hidden" /> /* Hack to keep imports valid if Search was used alone, but we need Menu */}
-                                {isMenuOpen ? null : <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-menu"><line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" /></svg>}
+                                {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
                             </button>
                         ) : (
                             <button

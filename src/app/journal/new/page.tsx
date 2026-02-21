@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/utils/supabase/client"
 import { useLanguage } from "@/context/LanguageContext"
@@ -29,24 +29,24 @@ export default function NewEntryPage() {
     const [maxChars, setMaxChars] = useState(50)
     const [isFocused, setIsFocused] = useState(false)
 
-    // Check Level & Set Max Chars based on Language
+    // Check Level & Set Max Chars - only needs to run once on mount
     useEffect(() => {
         const checkUserLevel = async () => {
             const { data: { user } } = await supabase.auth.getUser()
 
-            let limit = 100 // Unified Free Limit
+            let limit = 100
 
             if (user) {
                 const { data: profile } = await supabase.from('profiles').select('level').eq('id', user.id).maybeSingle()
                 if (profile && profile.level >= 100) {
-                    limit = 500 // Unified Premium Limit
+                    limit = 500
                 }
             }
 
             setMaxChars(limit)
         }
         checkUserLevel()
-    }, [language])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Initialize Date
     useEffect(() => {
@@ -72,24 +72,24 @@ export default function NewEntryPage() {
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=weather_code`)
                 const data = await res.json()
 
-                // WMO Weather interpretation (simplified)
                 const code = data.current.weather_code
-                let weatherText = "Sunny"
 
-                // Enhanced WMO Code Mapping
-                if (code === 0) weatherText = "Sunny" // Clear sky
-                else if (code >= 1 && code <= 3) weatherText = "Cloudy" // Mainly clear, partly cloudy, and overcast
-                else if (code >= 45 && code <= 48) weatherText = "Cloudy" // Fog treated as Cloudy for simplicity (or make a new Fog icon if available, but for now match existing UI options)
-                else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) weatherText = "Rainy" // Drizzle, Rain, Showers
-                else if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) weatherText = "Snowy" // Snow fall, grains, showers
-                else if (code >= 95) weatherText = "Stormy" // Thunderstorm
+                // WMO code -> weather text lookup (cleaner than if-else chain)
+                const getWeather = (c: number) => {
+                    if (c === 0) return "Sunny"
+                    if (c <= 3) return "Cloudy"
+                    if (c <= 48) return "Cloudy"
+                    if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return "Rainy"
+                    if ((c >= 71 && c <= 77) || (c >= 85 && c <= 86)) return "Snowy"
+                    if (c >= 95) return "Stormy"
+                    return "Sunny"
+                }
 
-                setWeather(weatherText)
+                setWeather(getWeather(code))
                 setIsAutoWeather(true)
-                console.log("Auto weather set:", weatherText)
             } catch (e) {
                 console.error("Weather fetch failed", e)
-                setIsAutoWeather(false) // Explicitly allow manual edit on error
+                setIsAutoWeather(false)
             }
         }, () => {
             console.log("Geolocation denied")
@@ -176,13 +176,13 @@ export default function NewEntryPage() {
         }
     }
 
-    const handleBoxClick = (index: number) => {
+    const handleBoxClick = useCallback((index: number) => {
         if (!textareaRef.current) return
         const targetPos = Math.min(index, story.length)
         textareaRef.current.focus()
         textareaRef.current.setSelectionRange(targetPos, targetPos)
         setCursorPos(targetPos)
-    }
+    }, [story.length])
 
     const scrollContainerRef = useRef<HTMLDivElement>(null)
     const isManualScroll = useRef(false)

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, ReactNode, useCallback } from "react"
+import { createContext, useContext, useState, ReactNode, useCallback, useRef } from "react"
 import { createClient } from "@/utils/supabase/client"
 
 interface DiaryEntry {
@@ -35,25 +35,18 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(true)
-    const [isInitialized, setIsInitialized] = useState(false) // First load check
-
-    // Keep track of loaded pages internally to prevent request spam
-    const [lastLoadedPage, setLastLoadedPage] = useState(-1)
+    const [isInitialized, setIsInitialized] = useState(false)
+    const isFetchingRef = useRef(false) // Use ref instead of state to avoid dep array issues
 
     const supabase = createClient()
     const PAGE_SIZE = 12
 
     const fetchEntries = useCallback(async (page = 0) => {
-        // Prevent redundant calls for the same page if strictly requested
-        // But for "Load More" scenarios, we rely on caller to pass next page
+        if (isFetchingRef.current) return
+        isFetchingRef.current = true
 
-        if (page === 0) {
-            if (loading) return // Already initial loading
-            setLoading(true)
-        } else {
-            if (loadingMore || !hasMore) return
-            setLoadingMore(true)
-        }
+        if (page === 0) setLoading(true)
+        else setLoadingMore(true)
 
         try {
             const { data: { user } } = await supabase.auth.getUser()
@@ -61,23 +54,15 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
             const from = page * PAGE_SIZE
             const to = from + PAGE_SIZE - 1
 
-            // Parallel Request Pattern (Optimized)
-            const [diariesResult] = await Promise.all([
-                supabase
-                    .from('diaries')
-                    .select(`
-                        id, created_at, image_url, content, user_id,
-                        likes!likes_diary_id_fkey (user_id)
-                    `)
-                    .order('created_at', { ascending: false })
-                    .range(from, to)
-            ]);
+            const { data: diaries, error } = await supabase
+                .from('diaries')
+                .select(`id, created_at, image_url, content, user_id, likes!likes_diary_id_fkey (user_id)`)
+                .order('created_at', { ascending: false })
+                .range(from, to)
 
-            const { data: diaries, error } = diariesResult
             if (error) throw error
 
             if (diaries && diaries.length > 0) {
-                // Fetch Author Profiles
                 const userIds = Array.from(new Set(diaries.map((d: any) => d.user_id)))
                 const { data: profiles } = await supabase
                     .from('profiles')
@@ -87,15 +72,13 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
                 const profileMap = new Map()
                 profiles?.forEach((p: any) => profileMap.set(p.id, p))
 
-                const mappedEntries = diaries.map((d: any) => {
+                const mappedEntries: DiaryEntry[] = diaries.map((d: any) => {
                     const profile = profileMap.get(d.user_id)
                     return {
                         id: d.id,
                         userId: d.user_id || "unknown",
-                        date: new Date(d.created_at).toLocaleDateString("en-US", { // Date formatting will be localized in UI if needed, standardized here
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
+                        date: new Date(d.created_at).toLocaleDateString("en-US", {
+                            year: 'numeric', month: 'long', day: 'numeric'
                         }),
                         imageUrl: d.image_url,
                         caption: d.content,
@@ -109,20 +92,15 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
                 })
 
                 if (page === 0) {
-                    setEntries(mappedEntries as DiaryEntry[])
-                    setLastLoadedPage(0)
+                    setEntries(mappedEntries)
                     setHasMore(diaries.length === PAGE_SIZE)
                 } else {
                     setEntries(prev => {
-                        // Deduping (Safety)
                         const newIds = new Set(mappedEntries.map(e => e.id))
                         const filteredPrev = prev.filter(e => !newIds.has(e.id))
-                        return [...filteredPrev, ...mappedEntries as DiaryEntry[]]
+                        return [...filteredPrev, ...mappedEntries]
                     })
-                    setLastLoadedPage(page)
-                    if (diaries.length < PAGE_SIZE) {
-                        setHasMore(false)
-                    }
+                    setHasMore(diaries.length === PAGE_SIZE)
                 }
             } else {
                 if (page === 0) setEntries([])
@@ -134,8 +112,9 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             setLoadingMore(false)
             setIsInitialized(true)
+            isFetchingRef.current = false
         }
-    }, [hasMore, loading, loadingMore, supabase])
+    }, [supabase])
 
     const toggleLikeInCache = useCallback((id: number, isLiked: boolean, likes: number) => {
         setEntries(prev => prev.map(item =>
@@ -144,9 +123,8 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     }, [])
 
     const refresh = useCallback(() => {
-        setEntries([]) // Clear cache to show skeletons/loading state
+        setEntries([])
         setHasMore(true)
-        setLastLoadedPage(-1)
         fetchEntries(0)
     }, [fetchEntries])
 
