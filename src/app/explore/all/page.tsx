@@ -1,7 +1,17 @@
 
+import { Metadata } from 'next';
 import { SEO_KEYWORDS } from '@/constants/seo-keywords';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+
+export const metadata: Metadata = {
+    title: "Explore All Topics | Doodle Log",
+    description: "Browse all AI picture diary topics and discover curated diary collections by theme. Find inspiration for your next diary entry.",
+    openGraph: {
+        title: "Explore All Topics | Doodle Log",
+        description: "Discover AI picture diary collections organized by popular themes and topics.",
+    },
+};
 
 export default function AllKeywordsPage() {
     return (
@@ -11,15 +21,15 @@ export default function AllKeywordsPage() {
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-8 group"
             >
                 <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                갤러리로 돌아가기
+                Back to Gallery
             </Link>
 
             <header className="mb-12">
                 <h1 className="text-3xl md:text-5xl font-bold font-gaegu mb-4">
-                    탐색 키워드 전체보기
+                    Explore All Topics
                 </h1>
                 <p className="text-xl text-muted-foreground font-handwriting">
-                    AI가 추천하는 다양한 주제의 그림일기를 만나보세요.
+                    Discover AI-curated picture diary collections across a variety of themes.
                 </p>
             </header>
 

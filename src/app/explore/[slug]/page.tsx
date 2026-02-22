@@ -22,10 +22,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
 
     return {
-        title: `${keyword.name} AI 그림일기 예시 | Doodle Log`,
-        description: `${keyword.description}. AI가 그려주는 감성적인 그림일기 샘플과 프롬프트를 확인하세요.`,
+        title: `${keyword.name} AI Picture Diary | Doodle Log`,
+        description: `${keyword.description}. Explore AI-generated illustrations and creative diary prompts.`,
         openGraph: {
-            title: `${keyword.name} AI 그림일기 모아보기`,
+            title: `${keyword.name} AI Picture Diary Collection`,
             description: keyword.description,
             type: 'website',
         },
@@ -57,7 +57,7 @@ export default async function ExplorePage({ params }: Props) {
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-8 group"
             >
                 <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                갤러리로 돌아가기
+                Back to Gallery
             </Link>
 
             <header className="mb-12">
@@ -65,7 +65,7 @@ export default async function ExplorePage({ params }: Props) {
                     SEO Discovery Page
                 </div>
                 <h1 className="text-3xl md:text-5xl font-bold font-gaegu mb-4">
-                    #{keyword.name} AI 그림일기
+                    #{keyword.name} AI Picture Diary
                 </h1>
                 <p className="text-xl text-muted-foreground font-handwriting">
                     {keyword.description}
@@ -79,7 +79,7 @@ export default async function ExplorePage({ params }: Props) {
                             <div className="relative aspect-square rounded-2xl overflow-hidden border border-border shadow-sm group-hover:shadow-xl transition-all duration-500">
                                 <Image
                                     src={diary.image_url}
-                                    alt={`${keyword.name} 일기`}
+                                    alt={`${keyword.name} diary illustration`}
                                     fill
                                     className="object-cover group-hover:scale-110 transition-transform duration-700"
                                 />
@@ -100,21 +100,21 @@ export default async function ExplorePage({ params }: Props) {
             ) : (
                 <div className="bg-muted/30 rounded-3xl p-12 text-center border-2 border-dashed border-border/50">
                     <p className="text-muted-foreground font-handwriting text-lg">
-                        아직 {keyword.name}(와)과 관련된 그림일기가 없네요.<br />
-                        첫 번째로 이 주제의 일기를 남겨보시는 건 어떨까요?
+                        No picture diaries about {keyword.name} yet.<br />
+                        Why not be the first to create one?
                     </p>
                     <Link
                         href="/journal/new"
                         className="mt-6 inline-block bg-primary text-white font-bold py-3 px-8 rounded-full hover:scale-105 transition-transform"
                     >
-                        일기 쓰러 가기
+                        Write a Diary
                     </Link>
                 </div>
             )}
 
             {/* SEO Footer with other keywords */}
             <section className="mt-20 pt-12 border-t border-border/50">
-                <h2 className="text-lg font-bold mb-6">다른 인기 키워드 탐색</h2>
+                <h2 className="text-lg font-bold mb-6">Explore More Popular Topics</h2>
                 <div className="flex flex-wrap gap-2">
                     {SEO_KEYWORDS.filter(k => k.slug !== slug).map((k) => (
                         <Link
