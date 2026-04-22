@@ -1,0 +1,15 @@
+name: Daily Diary Cron
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 매일 자정 (UTC)
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  ping-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Daily Diary API
+        run: |
+          curl -X GET "https://doodlelog.ledpa7.com/api/cron/daily-diary" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
