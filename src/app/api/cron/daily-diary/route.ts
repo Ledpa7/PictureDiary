@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+export const runtime = 'edge';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getGoogleTokenEdge } from '@/utils/google-auth-edge';
 
