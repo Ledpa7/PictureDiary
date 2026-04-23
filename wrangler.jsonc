@@ -11,5 +11,8 @@
       "pattern": "doodlelog.ledpa7.com",
       "custom_domain": true
     }
-  ]
+  ],
+  "observability": {
+    "enabled": true
+  }
 }
