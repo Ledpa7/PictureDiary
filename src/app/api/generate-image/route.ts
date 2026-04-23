@@ -2,7 +2,7 @@ import { getGoogleTokenEdge } from "@/utils/google-auth-edge";
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
  
-export const runtime = 'edge';
+
 
 // === [1순위] AI Studio용 무료 번역/정제 헬퍼 ===
 async function refinePromptWithAIStudio(originalPrompt: string, apiKey: string) {
