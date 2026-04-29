@@ -6,8 +6,8 @@ export const createClient = (isBuildTime = false) => {
 
     if (isBuildTime || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
         return createBrowserClient(
-            supabaseUrl || 'https://placeholder.supabase.co',
-            supabaseAnonKey || 'placeholder'
+            supabaseUrl || 'https://logpqjqoxgloulymlyoj.supabase.co',
+            supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvZ3BxanFveGdsb3VseW1seW9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTU1MDQsImV4cCI6MjA4MDg3MTUwNH0.OuEg-GbnoFh_8grWzkyGeEOyCcXREJpbVav5Ol_v5tY'
         )
     }
 
