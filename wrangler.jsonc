@@ -6,9 +6,8 @@
   "assets": {
     "directory": ".vercel/output/static"
   },
-  "vars": {
-    "NEXT_PUBLIC_SUPABASE_URL": "https://logpqjqoxgloulymlyoj.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvZ3BxanFveGdsb3VseW1seW9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTU1MDQsImV4cCI6MjA4MDg3MTUwNH0.OuEg-GbnoFh_8grWzkyGeEOyCcXREJpbVav5Ol_v5tY"
+  "assets": {
+    "directory": ".vercel/output/static"
   },
   "routes": [
     {
