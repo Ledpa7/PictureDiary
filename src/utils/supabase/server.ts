@@ -2,15 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export const createClient = async (isBuildTime = false) => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co'
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder'
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-        if (isBuildTime) return null as any;
-        throw new Error("Missing Supabase environment variables.");
-    }
-
-    if (isBuildTime) {
+    // 빌드 타임이거나 환경 변수가 없는 경우(프리렌더링 시) 플레이스홀더 클라이언트 반환
+    if (isBuildTime || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
         return createServerClient(
             supabaseUrl,
             supabaseAnonKey,
