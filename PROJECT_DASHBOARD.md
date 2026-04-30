@@ -4,11 +4,11 @@
 
 ---
 
-## 🔴 현재 상태: OpenNext 마이그레이션 진행 중 (미해결)
+## 🟢 현재 상태: 모든 이슈 해결 완료 (Resolved)
 
-- **증상**: `next-on-pages` 어댑터가 Next.js 15와 호환되지 않아 `reading 'fetch'` 런타임 에러 발생
-- **결정**: deprecated된 `next-on-pages`를 버리고 최신 규격인 **OpenNext for Cloudflare**로 완전 전환
-- **현재 단계**: `open-next.config.ts` 추가 및 대시보드 빌드 명령어 수정 중
+- **해결 내용**: `next-on-pages` 어댑터를 버리고 **OpenNext for Cloudflare**로 마이그레이션 성공
+- **결과**: 빌드 성공 및 `/auth/callback` 500 에러 완벽 해결. 정상적으로 로그인 및 리다이렉션 작동 확인.
+- **최종 설정**: `open-next.config.ts` 정답 규격 적용 및 대시보드 명령어 최적화 완료
 
 ---
 
@@ -50,12 +50,13 @@
 | 빈칸 | Deploy command 비우기 | ❌ Required 필드라 입력 불가 |
 | `true` | 아무것도 안 하고 성공 반환 | ✅ 빌드+배포 Success 표시, ❌ 500 유지 |
 
-### 5. OpenNext 마이그레이션 시도 (2026-05-01)
+### 5. OpenNext 마이그레이션 성공 (2026-05-01)
 | 시도 | 내용 | 결과 |
 |------|------|------|
-| OpenNext 규격 전환 | `wrangler.jsonc`를 OpenNext(`main: .open-next/worker.js`) 규격으로 변경 | ✅ 설정 완료 |
-| 빌드 명령어 수정 | `npx @opennextjs/cloudflare build`로 변경 | ❌ `open-next.config.ts` 누락으로 실패 |
-| config 파일 추가 | `open-next.config.ts` (`runtime: edge`) 생성 | ⏳ 푸시 대기 중 |
+| OpenNext 규격 전환 | `wrangler.jsonc`를 OpenNext 규격으로 변경 | ✅ 해결 |
+| config 파일 수정 | 필수 필드(`incrementalCache` 등) 모두 포함하여 규격 준수 | ✅ 해결 |
+| 런타임 설정 최적화 | 에러 유발하는 `runtime = 'edge'` 선언 제거 | ✅ 해결 |
+| **최종 결과** | **배포 및 로그인 성공** | 🎉 **성공** |
 
 ---
 

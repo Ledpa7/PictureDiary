@@ -1,7 +1,20 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request: Request) {
-    return new Response("Edge Worker Status: OK. If you see this, routing is working.", {
-        status: 200,
-        headers: { "Content-Type": "text/plain" }
-    });
+    const { searchParams, origin } = new URL(request.url);
+    const code = searchParams.get('code');
+    const next = searchParams.get('next') ?? '/gallery';
+
+    if (code) {
+        const supabase = await createClient();
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        
+        if (!error) {
+            return NextResponse.redirect(`${origin}${next}`);
+        }
+    }
+
+    // 에러 발생 시 에러 페이지로 리다이렉트
+    return NextResponse.redirect(`${origin}/auth/auth-code-error`);
 }
