@@ -1,17 +1,8 @@
 {
   "name": "doodlelog",
-  "main": ".vercel/output/static/_worker.js/index.js",
-  "compatibility_date": "2025-02-01",
+  "compatibility_date": "2024-11-18",
   "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": ".vercel/output/static"
-  },
-  "routes": [
-    {
-      "pattern": "doodlelog.ledpa7.com",
-      "custom_domain": true
-    }
-  ],
+  "pages_build_output_dir": ".vercel/output",
   "observability": {
     "enabled": true
   }
