@@ -4,12 +4,11 @@
 
 ---
 
-## 🔴 현재 상태: 로그인 시 500 Internal Server Error (미해결)
+## 🔴 현재 상태: OpenNext 마이그레이션 진행 중 (미해결)
 
-- **증상**: `doodlelog.ledpa7.com/auth/callback?code=...` 접속 시 `Internal Server Error` 출력
-- **범위**: `/auth/callback` 뿐만 아니라 **모든 에지 함수 라우트**(`/api/generate-image`, `/api/cron/daily-diary`)에서 동일 증상 확인
-- **정적 페이지**(`/`, `/gallery`, `/admin`, `/privacy` 등)는 정상 작동
-- **결론**: 에지 함수(Edge Function)가 서버에서 실행되지 않고 있음
+- **증상**: `next-on-pages` 어댑터가 Next.js 15와 호환되지 않아 `reading 'fetch'` 런타임 에러 발생
+- **결정**: deprecated된 `next-on-pages`를 버리고 최신 규격인 **OpenNext for Cloudflare**로 완전 전환
+- **현재 단계**: `open-next.config.ts` 추가 및 대시보드 빌드 명령어 수정 중
 
 ---
 
@@ -51,11 +50,12 @@
 | 빈칸 | Deploy command 비우기 | ❌ Required 필드라 입력 불가 |
 | `true` | 아무것도 안 하고 성공 반환 | ✅ 빌드+배포 Success 표시, ❌ 500 유지 |
 
-### 4. Build Command 변경
+### 5. OpenNext 마이그레이션 시도 (2026-05-01)
 | 시도 | 내용 | 결과 |
 |------|------|------|
-| `@cloudflare/next-on-pages@1` (구버전) | 기존 빌드 명령어 | ✅ 빌드 성공 |
-| `@cloudflare/next-on-pages@latest` (최신) | 최신 버전으로 업데이트 | ✅ 빌드 성공 (실제로는 동일한 v1.13.16 설치됨) |
+| OpenNext 규격 전환 | `wrangler.jsonc`를 OpenNext(`main: .open-next/worker.js`) 규격으로 변경 | ✅ 설정 완료 |
+| 빌드 명령어 수정 | `npx @opennextjs/cloudflare build`로 변경 | ❌ `open-next.config.ts` 누락으로 실패 |
+| config 파일 추가 | `open-next.config.ts` (`runtime: edge`) 생성 | ⏳ 푸시 대기 중 |
 
 ---
 
