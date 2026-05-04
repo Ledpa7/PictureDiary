@@ -76,7 +76,24 @@
 - `@cloudflare/next-on-pages`는 이미 **deprecated** 상태 (OpenNext 어댑터로 전환 권장)
 - Next.js 15.5.15와의 호환성 문제 가능성 존재
 
+## ✅ 최종 해결 보고서 (2026-05-01)
+
+### 1. 에러 원인 분석 (Post-mortem)
+- **증상**: 배포 성공 후에도 에지 함수(/auth/callback 등) 호출 시 500 Internal Server Error 발생.
+- **근본 원인**: Next.js 15 버전이 `@cloudflare/next-on-pages` 어댑터(현재 유지보수 중단 단계)와 에셋 로딩 방식에서 충돌을 일으킴. 특히 `env.ASSETS.fetch`를 찾지 못하는 런타임 에러 발생.
+
+### 2. 최종 해결책: OpenNext 마이그레이션
+- **어댑터 교체**: 구형 어댑터를 버리고 클라우드플레어 공식 권장인 **OpenNext for Cloudflare**로 완전 전환.
+- **필수 설정 준수**: `open-next.config.ts` 작성 시 빌드 도구가 요구하는 모든 객체 구조(incrementalCache, tagCache, queue 등)를 누락 없이 포함함.
+- **런타임 충돌 제거**: 개별 라우트 파일에 선언되어 있던 `export const runtime = 'edge';`를 모두 제거하여 OpenNext의 빌드 최적화 로직과 충돌하지 않게 함.
+
+### 3. 향후 유지보수 시 주의사항
+- **빌드 명령어**: `npm run build && npx @opennextjs/cloudflare build`를 유지해야 함.
+- **배포 명령어**: `npx wrangler deploy`를 사용하며, `wrangler.jsonc`의 `main`과 `assets` 경로를 항상 최신 빌드 폴더(`.open-next`)에 맞춰야 함.
+- **환경 변수**: `NEXT_PUBLIC_` 변수가 빌드 시점에 필요할 경우, 클라우드플레어 대시보드에서 'Secret'이 아닌 일반 'Variable'로 설정되어 있는지 확인 필요.
+
 ---
+**DoodleLog 배포 및 인증 이슈 종결.** 🎉
 
 ## 📝 현재 파일 상태
 
