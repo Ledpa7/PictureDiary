@@ -3,12 +3,15 @@
 
 
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import Image from "next/image"
 import { Plus, Heart, MessageCircle, Bookmark, X, Edit2, Send } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useParams, useRouter } from "next/navigation"
-import TiltCard from "@/components/TiltCard"
+import DiaryCard from "@/components/DiaryCard"
+import { resizeAndCropImage } from "@/lib/imageUtils"
+import { parseCaption } from "@/lib/utils"
+import { getCache, setCache } from "@/lib/cache"
 
 interface DiaryEntry {
     id: number
@@ -112,37 +115,6 @@ export default function UserGalleryPage() {
         fetchEntries(nextPage)
     }
 
-    // Helper: Resize & Crop Image
-    const resizeAndCropImage = (file: File): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
-            const img = document.createElement('img')
-            img.src = URL.createObjectURL(file)
-            img.onload = () => {
-                const canvas = document.createElement('canvas')
-                const ctx = canvas.getContext('2d')
-                if (!ctx) return reject(new Error('No canvas context'))
-
-                const targetSize = 100
-                canvas.width = targetSize
-                canvas.height = targetSize
-
-                // Center Crop Logic
-                const minSide = Math.min(img.width, img.height)
-                const sx = (img.width - minSide) / 2
-                const sy = (img.height - minSide) / 2
-
-                // Draw centered crop to 100x100 canvas
-                ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize)
-
-                canvas.toBlob((blob) => {
-                    if (blob) resolve(blob)
-                    else reject(new Error('Blob creation failed'))
-                }, file.type, 0.9)
-            }
-            img.onerror = (e) => reject(e)
-        })
-    }
-
     // Save Profile
     const handleSaveProfile = async () => {
         if (!currentUser) return
@@ -212,24 +184,56 @@ export default function UserGalleryPage() {
             if (page === 0) setLoading(true)
             else setLoadingMore(true)
 
-            const from = page * PAGE_SIZE
-            const to = from + PAGE_SIZE - 1
+            const cacheKey = `gallery_${userId}_page_${page}`
+            const cachedData = getCache(cacheKey)
+            
+            let diaries = null
+            let myLikedIds = new Set()
+            let user = null
 
-            const { data: diaries, error } = await supabase
-                .from('diaries')
-                .select(`
-                    id, created_at, image_url, content, user_id,
-                    likes!likes_diary_id_fkey (user_id)
-                `)
-                .eq('user_id', userId) // Filter by userId
-                .order('created_at', { ascending: false })
-                .range(from, to)
+            if (cachedData) {
+                diaries = cachedData.diaries
+                myLikedIds = cachedData.myLikedIds
+                user = cachedData.user
+            } else {
+                const from = page * PAGE_SIZE
+                const to = from + PAGE_SIZE - 1
 
-            if (error) throw error
+                const { data, error } = await supabase
+                    .from('diaries')
+                    .select(`
+                        id, created_at, image_url, content, user_id,
+                        likes:likes!likes_diary_id_fkey(count)
+                    `)
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .range(from, to)
+
+                if (error) throw error
+                diaries = data
+
+                if (diaries && diaries.length > 0) {
+                    const { data: userData } = await supabase.auth.getUser()
+                    user = userData.user
+                    
+                    if (user) {
+                        const diaryIds = diaries.map(d => d.id)
+                        const { data: myLikes } = await supabase
+                            .from('likes')
+                            .select('diary_id')
+                            .eq('user_id', user.id)
+                            .in('diary_id', diaryIds)
+                        
+                        if (myLikes) {
+                            myLikedIds = new Set(myLikes.map(l => l.diary_id))
+                        }
+                    }
+                    
+                    setCache(cacheKey, { diaries, myLikedIds, user })
+                }
+            }
 
             if (diaries && diaries.length > 0) {
-                const { data: { user } } = await supabase.auth.getUser()
-
                 const mappedEntries = diaries.map((d: any) => ({
                     id: d.id,
                     userId: d.user_id || "unknown",
@@ -240,17 +244,20 @@ export default function UserGalleryPage() {
                     }),
                     imageUrl: d.image_url,
                     caption: d.content,
-                    likes: d.likes ? d.likes.length : 0,
-                    isLiked: user ? d.likes.some((like: any) => like.user_id === user.id) : false
+                    likes: d.likes && d.likes[0] ? d.likes[0].count : 0,
+                    isLiked: user ? myLikedIds.has(d.id) : false
                 }))
 
                 if (page === 0) {
                     setEntries(mappedEntries as DiaryEntry[])
-                    // Simple stats calculation for initial load
                     const totalLikes = mappedEntries.reduce((acc: number, curr: any) => acc + curr.likes, 0)
                     setUserStats({ likes: totalLikes, comments: 0 })
                 } else {
-                    setEntries(prev => [...prev, ...mappedEntries as DiaryEntry[]])
+                    setEntries(prev => {
+                        const existingIds = new Set(prev.map(e => e.id))
+                        const newEntries = mappedEntries.filter(e => !existingIds.has(e.id))
+                        return [...prev, ...newEntries as DiaryEntry[]]
+                    })
                 }
 
                 if (diaries.length < PAGE_SIZE) {
@@ -413,6 +420,10 @@ export default function UserGalleryPage() {
         return () => window.removeEventListener("keydown", handleEsc)
     }, [])
 
+    const handleCardClick = useCallback((entry: DiaryEntry) => {
+        setSelectedEntry(entry)
+    }, [])
+
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 
     return (
@@ -542,61 +553,11 @@ export default function UserGalleryPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {entries.map((entry) => (
-                    <TiltCard
-                        key={entry.id}
-                        onClick={() => setSelectedEntry(entry)}
-                        className="group relative cursor-pointer bg-card flex flex-col h-full hover:z-10 shadow-sm border border-border overflow-hidden rounded-md"
-                    >
-                        <div className="relative aspect-square w-full bg-muted">
-                            <Image
-                                src={entry.imageUrl}
-                                alt="Diary Entry"
-                                fill
-                                className="object-cover transition-transform duration-500 group-hover:scale-110"
-                                sizes="(max-width: 768px) 50vw, 20vw"
-                            />
-                        </div>
-                        <div className="p-3 bg-card flex flex-col justify-between flex-1">
-                            <div>
-                                <p className="text-xs font-bold text-muted-foreground mb-1">{entry.date}</p>
-                                <div className="text-sm font-handwriting text-foreground line-clamp-2 leading-snug">
-                                    {(() => {
-                                        let title = ""
-                                        let body = ""
-                                        const parts = entry.caption.split(/\r?\n/)
-                                        if (parts.length > 1) {
-                                            title = parts[0]
-                                            body = parts.slice(1).join(' ')
-                                        } else {
-                                            const bracketIndex = entry.caption.indexOf(']')
-                                            if (bracketIndex !== -1 && bracketIndex < entry.caption.length - 1) {
-                                                title = entry.caption.slice(0, bracketIndex + 1)
-                                                body = entry.caption.slice(bracketIndex + 1)
-                                            } else {
-                                                title = entry.caption
-                                                body = ""
-                                            }
-                                        }
-                                        title = title.replace(/^\[|\]$/g, '')
-
-                                        return (
-                                            <>
-                                                <span className="font-bold text-base mr-1">{title}</span>
-                                                <span className="opacity-80">{body}</span>
-                                            </>
-                                        )
-                                    })()}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-1 mt-3 text-muted-foreground">
-                                <Heart
-                                    size={14}
-                                    className={entry.isLiked ? "fill-red-500 text-red-500" : ""}
-                                />
-                                <span className="text-xs">{entry.likes}</span>
-                            </div>
-                        </div>
-                    </TiltCard>
+                    <DiaryCard 
+                        key={entry.id} 
+                        entry={entry} 
+                        onClick={handleCardClick} 
+                    />
                 ))}
 
                 {/* Sentinel for Infinite Scroll */}
@@ -650,29 +611,7 @@ export default function UserGalleryPage() {
                                     <div className="text-sm w-full">
                                         <div className="flex flex-col w-full gap-1">
                                             {(() => {
-                                                let title = ""
-                                                let body = ""
-                                                const parts = selectedEntry.caption.split(/\r?\n/)
-
-                                                if (parts.length > 1) {
-                                                    title = parts[0]
-                                                    body = parts.slice(1).join('\n').trim()
-                                                } else {
-                                                    const raw = selectedEntry.caption
-                                                    const bracketIndex = raw.indexOf(']')
-
-                                                    if (bracketIndex !== -1 && bracketIndex < raw.length - 1) {
-                                                        title = raw.slice(0, bracketIndex + 1).trim()
-                                                        body = raw.slice(bracketIndex + 1).trim()
-                                                    } else {
-                                                        title = raw
-                                                        body = ""
-                                                    }
-                                                }
-
-                                                // Clean up brackets from title for display if they exist (Legacy support)
-                                                title = title.replace(/^\[|\]$/g, '')
-
+                                                const { title, body } = parseCaption(selectedEntry.caption);
                                                 return (
                                                     <>
                                                         <div className="font-bold text-xl leading-snug text-foreground">
