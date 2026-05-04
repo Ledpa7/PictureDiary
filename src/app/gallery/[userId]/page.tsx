@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import Image from "next/image"
-import { Plus, Heart, MessageCircle, Bookmark, X, Edit2, Send } from "lucide-react"
+import { Plus, Heart, MessageCircle, Bookmark, X, Edit2, Send, Loader2 } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
 import { useParams, useRouter } from "next/navigation"
 import DiaryCard from "@/components/DiaryCard"
@@ -424,7 +424,12 @@ export default function UserGalleryPage() {
         setSelectedEntry(entry)
     }, [])
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    if (loading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 size={40} className="animate-spin text-[#FF8BA7]" />
+            <p className="font-handwriting text-lg animate-pulse">Loading Doodles...</p>
+        </div>
+    )
 
     return (
         <div className="container max-w-5xl py-8 px-4 mx-auto">
