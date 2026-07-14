@@ -3,7 +3,24 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getGoogleTokenEdge } from '@/utils/google-auth-edge';
 
-async function callGemini(prompt: string, token: string, projectId: string) {
+async function callGeminiWithAIStudio(prompt: string, apiKey: string) {
+    const model = 'gemini-2.5-flash-lite';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+        })
+    });
+    
+    if (!response.ok) throw new Error(`Gemini AI Studio Error: ${response.status}`);
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+}
+
+async function callGeminiWithVertex(prompt: string, token: string, projectId: string) {
     const location = 'us-central1';
     const modelId = 'gemini-1.5-flash-001'; 
     const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`;
@@ -20,9 +37,34 @@ async function callGemini(prompt: string, token: string, projectId: string) {
         })
     });
 
-    if (!response.ok) throw new Error(`Gemini Error: ${response.status} - ${await response.text()}`);
+    if (!response.ok) throw new Error(`Gemini Vertex Error: ${response.status} - ${await response.text()}`);
     const data = await response.json();
     return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+}
+
+async function generateWithGemini(
+    prompt: string, 
+    geminiApiKey?: string, 
+    getGoogleCreds?: () => Promise<{ token: string; projectId: string }>
+) {
+    if (geminiApiKey) {
+        try {
+            console.log("[Gemini] Trying AI Studio...");
+            return await callGeminiWithAIStudio(prompt, geminiApiKey);
+        } catch (e: any) {
+            console.warn("[Gemini] AI Studio failed, trying Vertex AI fallback...", e.message);
+        }
+    }
+    if (getGoogleCreds) {
+        try {
+            const { token, projectId } = await getGoogleCreds();
+            console.log("[Gemini] Trying Vertex AI...");
+            return await callGeminiWithVertex(prompt, token, projectId);
+        } catch (e: any) {
+            console.error("[Gemini] Vertex AI failed:", e.message);
+        }
+    }
+    throw new Error("No Gemini API configuration available or all attempts failed.");
 }
 
 async function generateImageWithStabilityAI(prompt: string) {
@@ -57,8 +99,6 @@ async function generateImageWithStabilityAI(prompt: string) {
     return `data:image/png;base64,${data.artifacts[0].base64}`;
 }
 
-// Cloudflare Edge Runtime
-
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
@@ -66,7 +106,8 @@ export async function GET(request: Request) {
 
     // 1. Verify Cron Secret (Security)
     const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
         console.error("[Cron] Unauthorized attempt");
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,10 +118,21 @@ export async function GET(request: Request) {
             throw new Error("Configuration Error: BOT_USER_ID missing");
         }
 
-        // 2. Auth with Google (Edge Compatible)
-        console.log("[Cron] Authenticating with Google...");
-        const { token, projectId } = await getGoogleTokenEdge();
-        if (!token || !projectId) throw new Error("Google Auth Failed");
+        // 2. Auth Credentials Lazy Loader
+        const geminiApiKey = process.env.GEMINI_API_KEY;
+        let cachedToken = "";
+        let cachedProjectId = "";
+
+        const getGoogleCreds = async () => {
+            if (cachedToken && cachedProjectId) {
+                return { token: cachedToken, projectId: cachedProjectId };
+            }
+            console.log("[Cron] Authenticating with Google Cloud...");
+            const auth = await getGoogleTokenEdge();
+            cachedToken = auth.token;
+            cachedProjectId = auth.projectId;
+            return { token: cachedToken, projectId: cachedProjectId };
+        };
 
         // 3. Generate Random Topic & Weather
         const weathers = ['Sunny', 'Cloudy', 'Rainy', 'Snowy', 'Windy'];
@@ -101,7 +153,7 @@ export async function GET(request: Request) {
         - Output: ONLY the diary content string. No title, no date prefix.
         `;
 
-        const diaryContent = await callGemini(diaryPrompt, token, projectId);
+        const diaryContent = await generateWithGemini(diaryPrompt, geminiApiKey, getGoogleCreds);
         if (!diaryContent) throw new Error("Failed to generate diary content");
 
         // 5. Generate Image Prompt
@@ -112,7 +164,7 @@ export async function GET(request: Request) {
         Output: ONLY the English prompt.
         `;
 
-        const refinedPrompt = await callGemini(imagePromptInstruction, token, projectId);
+        const refinedPrompt = await generateWithGemini(imagePromptInstruction, geminiApiKey, getGoogleCreds);
         if (!refinedPrompt) throw new Error("Failed to generate image prompt");
 
         // 6. Generate Image
@@ -122,7 +174,7 @@ export async function GET(request: Request) {
         const supabase = createAdminClient();
 
         const titlePrompt = `Extract a very short, cute title (max 10 chars) from this diary: "${diaryContent}". Output ONLY the title in Korean.`;
-        const title = await callGemini(titlePrompt, token, projectId);
+        const title = await generateWithGemini(titlePrompt, geminiApiKey, getGoogleCreds);
 
         const safeTitle = title?.replace(/['"]/g, '').trim() || "오늘의 일기";
         const fullContent = `${safeTitle}\n${diaryContent}`;

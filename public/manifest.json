@@ -1,6 +1,6 @@
 {
-    "name": "Doodle Log - AI Picture Diary",
-    "short_name": "Doodle Log",
+    "name": "Doodle Log - 두들로그",
+    "short_name": "두들로그",
     "description": "Record your daily memories and let AI turn them into cute hand-drawn illustrations.",
     "start_url": "/",
     "display": "standalone",
@@ -28,7 +28,7 @@
     ],
     "screenshots": [
         {
-            "src": "https://ai-picture-diary.pages.dev/gallery",
+            "src": "https://doodlelog.pages.dev/gallery",
             "sizes": "1280x720",
             "type": "image/png",
             "form_factor": "wide",

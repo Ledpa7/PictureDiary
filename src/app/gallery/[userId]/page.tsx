@@ -11,7 +11,7 @@ import { useParams, useRouter } from "next/navigation"
 import DiaryCard from "@/components/DiaryCard"
 import { resizeAndCropImage } from "@/lib/imageUtils"
 import { parseCaption } from "@/lib/utils"
-import { getCache, setCache } from "@/lib/cache"
+import { getCache, setCache, clearCache } from "@/lib/cache"
 
 interface DiaryEntry {
     id: number
@@ -64,7 +64,23 @@ export default function UserGalleryPage() {
     const [isEditingProfile, setIsEditingProfile] = useState(false)
     const [editForm, setEditForm] = useState({ username: "", description: "" })
     const [avatarFile, setAvatarFile] = useState<File | null>(null)
+    const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
+
+    // Clean up object URL to prevent memory leaks
+    useEffect(() => {
+        if (!avatarFile) {
+            setAvatarPreviewUrl(null)
+            return
+        }
+
+        const objectUrl = URL.createObjectURL(avatarFile)
+        setAvatarPreviewUrl(objectUrl)
+
+        return () => {
+            URL.revokeObjectURL(objectUrl)
+        }
+    }, [avatarFile])
 
     const supabase = createClient()
 
@@ -350,6 +366,8 @@ export default function UserGalleryPage() {
                 if (error) throw error
             }
 
+            // Invalidate local cache for this user
+            clearCache(`gallery_${userId}_page_`);
         } catch (error) {
             console.error("Error toggling like:", error)
             // 4. Rollback on Error
@@ -397,7 +415,7 @@ export default function UserGalleryPage() {
         if (typeof navigator !== 'undefined' && navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Doodle Log - AI Picture Diary',
+                    title: '두들로그 - Doodle Log',
                     text: `Check out this AI drawing: ${entry.caption.split('\n')[0]}`,
                     url: `${window.location.origin}/gallery/${entry.userId}`
                 });
@@ -490,8 +508,8 @@ export default function UserGalleryPage() {
                                 <label className="block text-sm font-bold text-foreground mb-2">Profile Image</label>
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 rounded-full bg-muted overflow-hidden border border-border shrink-0">
-                                        {avatarFile ? (
-                                            <img src={URL.createObjectURL(avatarFile)} className="w-full h-full object-cover" />
+                                        {avatarPreviewUrl ? (
+                                            <img src={avatarPreviewUrl} className="w-full h-full object-cover" />
                                         ) : (
                                             <img src={profile?.avatar_url || `https://api.dicebear.com/7.x/notionists/svg?seed=${userId}`} className="w-full h-full object-cover" />
                                         )}

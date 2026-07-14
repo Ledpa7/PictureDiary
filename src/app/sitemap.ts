@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 import { SEO_KEYWORDS } from '@/constants/seo-keywords'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-    const baseUrl = 'https://ai-picture-diary.pages.dev'
+    const baseUrl = 'https://doodlelog.pages.dev'
 
     const keywordRoutes = SEO_KEYWORDS.map((k) => ({
         url: `${baseUrl}/explore/${k.slug}`,

@@ -20,10 +20,10 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://ai-picture-diary.pages.dev'),
+  metadataBase: new URL('https://doodlelog.pages.dev'),
   title: {
-    default: "Doodle Log - AI Picture Diary | Turn Memories into Art",
-    template: "%s | Doodle Log",
+    default: "두들로그 - Doodle Log | Turn Memories into Art",
+    template: "%s | 두들로그 - Doodle Log",
   },
   description: "Record your daily memories and let AI turn them into cute hand-drawn illustrations. A nostalgic diary service for everyone around the world.",
   keywords: ["AI Diary", "Picture Diary", "Doodle", "Journal", "AI Drawing", "Memory Log", "Daily Journal", "AI Art Diary"],
@@ -41,13 +41,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     alternateLocale: ["ko_KR"],
     url: "/",
-    title: "Doodle Log - AI Picture Diary",
+    title: "두들로그 - Doodle Log",
     description: "Turn your memories into drawings with AI. A nostalgic journey in your pocket.",
-    siteName: "Doodle Log",
+    siteName: "두들로그 - Doodle Log",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Doodle Log - AI Picture Diary",
+    title: "두들로그 - Doodle Log",
     description: "Turn your memories into drawings with AI.",
     creator: "@doodlelog",
   },

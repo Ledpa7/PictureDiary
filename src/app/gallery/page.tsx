@@ -60,15 +60,14 @@ export default function GalleryPage() {
         const observer = new IntersectionObserver(
             obs => {
                 if (obs[0].isIntersecting && hasMore && !loading && !loadingMore) {
-                    const nextPage = Math.ceil(entries.length / PAGE_SIZE)
-                    fetchEntries(nextPage)
+                    fetchEntries()
                 }
             },
             { threshold: 1.0 }
         )
         if (observerTarget.current) observer.observe(observerTarget.current)
         return () => observer.disconnect()
-    }, [hasMore, loading, loadingMore, entries])
+    }, [hasMore, loading, loadingMore, fetchEntries])
 
     useEffect(() => {
         if (!selectedEntry) {

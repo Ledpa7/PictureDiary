@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
             allow: '/',
             disallow: ['/api/', '/admin/'],
         },
-        sitemap: 'https://ai-picture-diary.pages.dev/sitemap.xml',
+        sitemap: 'https://doodlelog.pages.dev/sitemap.xml',
     }
 }

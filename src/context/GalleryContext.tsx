@@ -36,22 +36,25 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     const [loadingMore, setLoadingMore] = useState(false)
     const [hasMore, setHasMore] = useState(true)
     const [isInitialized, setIsInitialized] = useState(false)
-    const isFetchingRef = useRef(false) // Use ref instead of state to avoid dep array issues
+    const isFetchingRef = useRef(false)
+    const currentPageRef = useRef(0)
 
     const supabase = createClient()
     const PAGE_SIZE = 12
 
-    const fetchEntries = useCallback(async (page = 0) => {
+    const fetchEntries = useCallback(async (page?: number) => {
         if (isFetchingRef.current) return
         isFetchingRef.current = true
 
-        if (page === 0) setLoading(true)
+        const targetPage = page !== undefined ? page : currentPageRef.current + 1
+
+        if (targetPage === 0) setLoading(true)
         else setLoadingMore(true)
 
         try {
             const { data: { user } } = await supabase.auth.getUser()
 
-            const from = page * PAGE_SIZE
+            const from = targetPage * PAGE_SIZE
             const to = from + PAGE_SIZE - 1
 
             const { data: diaries, error } = await supabase
@@ -91,19 +94,19 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
                     }
                 })
 
-                if (page === 0) {
+                if (targetPage === 0) {
                     setEntries(mappedEntries)
-                    setHasMore(diaries.length === PAGE_SIZE)
                 } else {
                     setEntries(prev => {
                         const newIds = new Set(mappedEntries.map(e => e.id))
                         const filteredPrev = prev.filter(e => !newIds.has(e.id))
                         return [...filteredPrev, ...mappedEntries]
                     })
-                    setHasMore(diaries.length === PAGE_SIZE)
                 }
+                setHasMore(diaries.length === PAGE_SIZE)
+                currentPageRef.current = targetPage
             } else {
-                if (page === 0) setEntries([])
+                if (targetPage === 0) setEntries([])
                 setHasMore(false)
             }
         } catch (error) {
@@ -125,6 +128,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     const refresh = useCallback(() => {
         setEntries([])
         setHasMore(true)
+        currentPageRef.current = 0
         fetchEntries(0)
     }, [fetchEntries])
 

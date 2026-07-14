@@ -27,7 +27,7 @@ export default function PrivacyPolicyPage() {
                     <h2 className="text-2xl font-bold mb-3 text-primary">2. Purpose of Data Use</h2>
                     <p className="mb-2">We use personal information for the following specific purposes:</p>
                     <ul className="list-disc pl-5 space-y-2">
-                        <li>To provide, operate, and maintain the "Picture Diary" service.</li>
+                        <li>To provide, operate, and maintain the "Doodle Log" service.</li>
                         <li>To generate artwork: Your text entries are processed by AI models (Google Vertex AI) solely for the purpose of creating your diary images.</li>
                         <li>To manage user accounts and authentication.</li>
                         <li>To process payments and refund requests.</li>
