@@ -21,7 +21,7 @@ export function Header() {
     const router = useRouter();
     const pathname = usePathname();
     const supabase = useMemo(() => createClient(), []);
-    const { language } = useLanguage();
+    const { language, setLanguage } = useLanguage();
 
     useEffect(() => {
         const checkUser = async () => {
@@ -142,6 +142,21 @@ export function Header() {
 
                     {/* Desktop Actions */}
                     <div className="hidden md:flex items-center space-x-4">
+                        {/* Language Selector */}
+                        <div className="flex items-center gap-0.5 bg-muted/40 p-0.5 rounded-full border border-border/40">
+                            <button
+                                onClick={() => setLanguage('ko')}
+                                className={`px-2.5 py-0.5 text-xs rounded-full transition-all duration-200 ${language === 'ko' ? 'bg-primary text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                KR
+                            </button>
+                            <button
+                                onClick={() => setLanguage('en')}
+                                className={`px-2.5 py-0.5 text-xs rounded-full transition-all duration-200 ${language === 'en' ? 'bg-primary text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                EN
+                            </button>
+                        </div>
                         {user ? (
                             <div className="flex items-center gap-4">
                                 <Link href={`/gallery/${user.id}`}>
@@ -177,7 +192,22 @@ export function Header() {
                     </div>
 
                     {/* Mobile Menu Button */}
-                    <div className="flex md:hidden items-center">
+                    <div className="flex md:hidden items-center gap-2">
+                        {/* Language Selector */}
+                        <div className="flex items-center gap-0.5 bg-muted/40 p-0.5 rounded-full border border-border/40">
+                            <button
+                                onClick={() => setLanguage('ko')}
+                                className={`px-2 py-0.5 text-[10px] rounded-full transition-all duration-200 ${language === 'ko' ? 'bg-primary text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                KR
+                            </button>
+                            <button
+                                onClick={() => setLanguage('en')}
+                                className={`px-2 py-0.5 text-[10px] rounded-full transition-all duration-200 ${language === 'en' ? 'bg-primary text-white font-semibold shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                            >
+                                EN
+                            </button>
+                        </div>
                         {user ? (
                             <button
                                 onClick={() => setIsMenuOpen(!isMenuOpen)}

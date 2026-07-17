@@ -3,6 +3,7 @@ import { Gaegu } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { VisitorCounter } from "@/components/VisitorCounter";
+import { cookies, headers } from "next/headers";
 
 import Link from "next/link";
 
@@ -19,8 +20,10 @@ export const viewport = {
   maximumScale: 1,
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://doodlelog.pages.dev';
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://doodlelog.pages.dev'),
+  metadataBase: new URL(siteUrl),
   title: {
     default: "두들로그 - Doodle Log | Turn Memories into Art",
     template: "%s | 두들로그 - Doodle Log",
@@ -63,18 +66,36 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "google-site-verification-placeholder",
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "google-site-verification-placeholder",
   },
 };
 
 import { LanguageProvider } from "@/context/LanguageContext";
 import { GalleryProvider } from "@/context/GalleryContext";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const langCookie = cookieStore.get('app-language')?.value;
+  
+  let lang = 'en';
+  if (langCookie === 'ko' || langCookie === 'en') {
+    lang = langCookie;
+  } else {
+    try {
+      const headersList = await headers();
+      const acceptLanguage = headersList.get('accept-language');
+      if (acceptLanguage && acceptLanguage.includes('ko')) {
+        lang = 'ko';
+      }
+    } catch (e) {
+      console.warn("Failed to read headers in layout", e);
+    }
+  }
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -95,7 +116,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"

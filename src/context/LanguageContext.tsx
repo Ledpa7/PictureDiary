@@ -21,6 +21,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             const savedLang = localStorage.getItem('app-language') as Language;
             if (savedLang && (savedLang === 'ko' || savedLang === 'en')) {
                 setLanguageState(savedLang);
+                document.cookie = `app-language=${savedLang}; path=/; max-age=31536000; SameSite=Lax`;
+            } else {
+                const cookieLang = typeof document !== 'undefined' ? document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('app-language='))
+                    ?.split('=')[1] as Language : null;
+                if (cookieLang && (cookieLang === 'ko' || cookieLang === 'en')) {
+                    setLanguageState(cookieLang);
+                    localStorage.setItem('app-language', cookieLang);
+                } else {
+                    document.cookie = 'app-language=en; path=/; max-age=31536000; SameSite=Lax';
+                }
             }
         } catch (e) {
             console.error('Failed to load language', e);
@@ -31,6 +43,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const setLanguage = (lang: Language) => {
         setLanguageState(lang);
         localStorage.setItem('app-language', lang);
+        document.cookie = `app-language=${lang}; path=/; max-age=31536000; SameSite=Lax`;
     };
 
     // Minimal translation helper for common terms

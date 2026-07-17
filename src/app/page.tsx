@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function Home() {
-  const { language: lang, setLanguage: setLang } = useLanguage();
+  const { language: lang } = useLanguage();
 
   const content = {
     ko: {
@@ -81,21 +81,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col font-handwriting relative">
-      {/* Language Toggle - Mobile Optimized */}
-      <div className="absolute top-2 right-3 md:top-6 md:right-6 flex gap-2 z-10 w-fit">
-        <button
-          onClick={() => setLang('ko')}
-          className={`px-3 py-1.5 text-xs md:text-sm rounded-full transition-all duration-200 ${lang === 'ko' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-        >
-          KR
-        </button>
-        <button
-          onClick={() => setLang('en')}
-          className={`px-3 py-1.5 text-xs md:text-sm rounded-full transition-all duration-200 ${lang === 'en' ? 'bg-primary text-white font-bold shadow-md' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-        >
-          EN
-        </button>
-      </div>
 
       <main className="flex-1 flex flex-col items-center justify-center p-4 gap-6 sm:p-8 sm:gap-8">
         {/* Hero Section */}
