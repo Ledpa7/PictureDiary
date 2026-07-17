@@ -125,7 +125,7 @@ export function Header() {
                 <div className="container flex h-14 max-w-screen-2xl items-center px-4 justify-between">
                     <div className="flex items-center">
                         <Link className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary cursor-pointer hover:opacity-80 transition-opacity" href="/">
-                            <img src="/logo.png" alt="Doodle Log Logo" className="w-6 h-6 rounded-md object-cover" />
+                            <img src="/logo.png?v=3" alt="Doodle Log Logo" className="w-6 h-6 rounded-md object-cover" />
                             <span>Doodle Log</span>
                         </Link>
                         {/* Desktop Nav */}
