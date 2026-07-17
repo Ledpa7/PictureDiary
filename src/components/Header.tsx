@@ -121,10 +121,11 @@ export function Header() {
 
     return (
         <>
-            <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/80">
                 <div className="container flex h-14 max-w-screen-2xl items-center px-4 justify-between">
                     <div className="flex items-center">
                         <Link className="mr-6 flex items-center space-x-2 font-bold text-xl text-primary cursor-pointer hover:opacity-80 transition-opacity" href="/">
+                            <img src="/logo.png" alt="Doodle Log Logo" className="w-6 h-6 rounded-md object-cover" />
                             <span>Doodle Log</span>
                         </Link>
                         {/* Desktop Nav */}
