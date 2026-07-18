@@ -43,6 +43,16 @@
   /* Accordion Animations */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-cute-bounce: cute-bounce 2s ease-in-out infinite;
+
+  @keyframes cute-bounce {
+    0%, 100% {
+      transform: translateY(0) rotate(-1.5deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(2deg);
+    }
+  }
 
   @keyframes accordion-down {
     from {
