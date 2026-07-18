@@ -40,6 +40,34 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setIsLoaded(true);
     }, []);
 
+    useEffect(() => {
+        if (!isLoaded) return;
+        
+        const updateTitle = () => {
+            const currentTitle = document.title;
+            if (language === 'en') {
+                if (currentTitle.includes("두들로그 - Doodle Log")) {
+                    document.title = currentTitle.replace("두들로그 - Doodle Log", "Doodle Log");
+                }
+            } else if (language === 'ko') {
+                if (currentTitle.includes("Doodle Log") && !currentTitle.includes("두들로그")) {
+                    document.title = currentTitle.replace("Doodle Log", "두들로그 - Doodle Log");
+                }
+            }
+        };
+
+        updateTitle();
+
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            const observer = new MutationObserver(() => {
+                updateTitle();
+            });
+            observer.observe(titleEl, { childList: true });
+            return () => observer.disconnect();
+        }
+    }, [language, isLoaded]);
+
     const setLanguage = (lang: Language) => {
         setLanguageState(lang);
         localStorage.setItem('app-language', lang);

@@ -22,53 +22,88 @@ export const viewport = {
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://doodlelog.pages.dev';
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
-  title: {
-    default: "두들로그 - Doodle Log | Turn Memories into Art",
-    template: "%s | 두들로그 - Doodle Log",
-  },
-  description: "Record your daily memories and let AI turn them into cute hand-drawn illustrations. A nostalgic diary service for everyone around the world.",
-  keywords: ["AI Diary", "Picture Diary", "Doodle", "Journal", "AI Drawing", "Memory Log", "Daily Journal", "AI Art Diary"],
-  authors: [{ name: "Doodle Log Team" }],
-  creator: "Doodle Log",
-  alternates: {
-    canonical: '/',
-    languages: {
-      'en-US': '/',
-      'ko-KR': '/',
+export async function generateMetadata(): Promise<Metadata> {
+  const cookieStore = await cookies();
+  const langCookie = cookieStore.get('app-language')?.value;
+  
+  let lang = 'en';
+  if (langCookie === 'ko' || langCookie === 'en') {
+    lang = langCookie;
+  } else {
+    try {
+      const headersList = await headers();
+      const acceptLanguage = headersList.get('accept-language');
+      if (acceptLanguage && acceptLanguage.includes('ko')) {
+        lang = 'ko';
+      }
+    } catch (e) {
+      console.warn("Failed to read headers in generateMetadata", e);
+    }
+  }
+
+  const isKo = lang === 'ko';
+  const siteTitle = isKo ? "두들로그 - Doodle Log" : "Doodle Log";
+  const defaultTitle = isKo 
+    ? "두들로그 - Doodle Log | 소중한 추억을 그림 일기로" 
+    : "Doodle Log | Turn Memories into Art";
+  const description = isKo
+    ? "하루에 한 번, 소중한 추억을 기록하고 귀여운 AI 그림으로 받아보세요. 전 세계 모두를 위한 추억 기록 서비스."
+    : "Record your daily memories and let AI turn them into cute hand-drawn illustrations. A nostalgic diary service for everyone around the world.";
+
+  return {
+    metadataBase: new URL(siteUrl),
+    title: {
+      default: defaultTitle,
+      template: `%s | ${siteTitle}`,
     },
-  },
-  openGraph: {
-    type: "website",
-    locale: "en_US",
-    alternateLocale: ["ko_KR"],
-    url: "/",
-    title: "두들로그 - Doodle Log",
-    description: "Turn your memories into drawings with AI. A nostalgic journey in your pocket.",
-    siteName: "두들로그 - Doodle Log",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "두들로그 - Doodle Log",
-    description: "Turn your memories into drawings with AI.",
-    creator: "@doodlelog",
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
+    description: description,
+    keywords: isKo
+      ? ["AI 일기", "그림일기", "낙서", "일기장", "AI 그림", "추억 기록", "데일리 일기", "AI 아트 다이어리"]
+      : ["AI Diary", "Picture Diary", "Doodle", "Journal", "AI Drawing", "Memory Log", "Daily Journal", "AI Art Diary"],
+    authors: [{ name: "Doodle Log Team" }],
+    creator: "Doodle Log",
+    alternates: {
+      canonical: '/',
+      languages: {
+        'en-US': '/',
+        'ko-KR': '/',
+      },
+    },
+    openGraph: {
+      type: "website",
+      locale: isKo ? "ko_KR" : "en_US",
+      alternateLocale: [isKo ? "en_US" : "ko_KR"],
+      url: "/",
+      title: siteTitle,
+      description: isKo 
+        ? "AI로 당신의 추억을 그림으로 만들어보세요. 당신의 주머니 속 향수 어린 여정."
+        : "Turn your memories into drawings with AI. A nostalgic journey in your pocket.",
+      siteName: siteTitle,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: siteTitle,
+      description: isKo
+        ? "AI로 당신의 추억을 그림으로 만들어보세요."
+        : "Turn your memories into drawings with AI.",
+      creator: "@doodlelog",
+    },
+    robots: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-video-preview': -1,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+      },
     },
-  },
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "google-site-verification-placeholder",
-  },
-};
+    verification: {
+      google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "google-site-verification-placeholder",
+    },
+  };
+}
 
 import { LanguageProvider } from "@/context/LanguageContext";
 import { GalleryProvider } from "@/context/GalleryContext";
