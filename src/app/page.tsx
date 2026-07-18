@@ -85,7 +85,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center justify-center p-4 gap-6 sm:p-8 sm:gap-8">
         {/* Hero Section */}
         <section className="flex flex-col gap-6 md:gap-8 items-center text-center max-w-2xl mt-8 md:mt-4">
-          <h1 className="text-5xl md:text-7xl font-bold text-primary leading-tight">
+          <h1 className="text-[80px] md:text-[150px] font-bold text-primary leading-none tracking-tight">
             {content[lang].title}
           </h1>
           <p className="text-base md:text-xl text-muted-foreground max-w-xs md:max-w-md mx-auto whitespace-pre-line leading-relaxed">
