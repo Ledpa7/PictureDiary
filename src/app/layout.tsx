@@ -168,7 +168,7 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${gaegu.variable} antialiased font-handwriting min-h-screen flex flex-col`}>
-        <LanguageProvider>
+        <LanguageProvider defaultLanguage={lang as 'ko' | 'en'}>
           <GalleryProvider>
             <Header />
             <VisitorCounter />

@@ -12,8 +12,14 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-    const [language, setLanguageState] = useState<Language>('en');
+export function LanguageProvider({ 
+    children, 
+    defaultLanguage = 'en' 
+}: { 
+    children: React.ReactNode; 
+    defaultLanguage?: Language; 
+}) {
+    const [language, setLanguageState] = useState<Language>(defaultLanguage);
     const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
