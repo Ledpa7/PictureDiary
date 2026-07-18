@@ -29,23 +29,55 @@ export default function NewEntryPage() {
     const [maxChars, setMaxChars] = useState(50)
     const [isFocused, setIsFocused] = useState(false)
 
-    // Check Level & Set Max Chars - only needs to run once on mount
+    // Subscription & Daily Limit States
+    const [isSubscribed, setIsSubscribed] = useState(false)
+    const [hasWrittenToday, setHasWrittenToday] = useState(false)
+    const [todayDiaryId, setTodayDiaryId] = useState<number | null>(null)
+    const [isLoadingCheck, setIsLoadingCheck] = useState(true)
+
+    // Check Level, Subscription, and Daily Limit
     useEffect(() => {
-        const checkUserLevel = async () => {
+        const checkUserStatus = async () => {
+            setIsLoadingCheck(true)
             const { data: { user } } = await supabase.auth.getUser()
 
-            let limit = 100
-
             if (user) {
-                const { data: profile } = await supabase.from('profiles').select('level').eq('id', user.id).maybeSingle()
-                if (profile && profile.level >= 100) {
-                    limit = 500
+                // 1. Check profile subscription status & level
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('level, is_subscribed')
+                    .eq('id', user.id)
+                    .maybeSingle()
+
+                const sub = profile?.is_subscribed || false
+                setIsSubscribed(sub)
+                
+                // Paid user gets 500 limit, free user gets 100 limit
+                const limit = sub || (profile && profile.level >= 100) ? 500 : 100
+                setMaxChars(limit)
+
+                // 2. Check if user has written today
+                const { data: recentDiaries } = await supabase
+                    .from('diaries')
+                    .select('id, created_at')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+
+                if (recentDiaries && recentDiaries.length > 0) {
+                    const latest = recentDiaries[0]
+                    const todayStr = new Date().toLocaleDateString('en-US')
+                    const latestDateStr = new Date(latest.created_at).toLocaleDateString('en-US')
+                    
+                    if (todayStr === latestDateStr) {
+                        setHasWrittenToday(true)
+                        setTodayDiaryId(latest.id)
+                    }
                 }
             }
-
-            setMaxChars(limit)
+            setIsLoadingCheck(false)
         }
-        checkUserLevel()
+        checkUserStatus()
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Initialize Date
@@ -96,6 +128,53 @@ export default function NewEntryPage() {
         })
     }, [])
 
+    const handleDeleteTodayDiary = async () => {
+        if (!todayDiaryId) return
+        if (window.confirm(language === 'ko' ? "정말로 오늘 일기를 삭제하고 다시 작성하시겠습니까?" : "Are you sure you want to delete today's diary and write a new one?")) {
+            try {
+                setIsGenerating(true)
+                const { error } = await supabase
+                    .from('diaries')
+                    .delete()
+                    .eq('id', todayDiaryId)
+
+                if (error) throw error
+
+                setStory("")
+                setTitle("")
+                setGeneratedImage(null)
+                setTodayDiaryId(null)
+                setHasWrittenToday(false)
+                setIsGenerating(false)
+                refresh()
+            } catch (e: any) {
+                console.error("Failed to delete diary:", e)
+                alert(language === 'ko' ? `삭제 실패: ${e.message}` : `Failed to delete: ${e.message}`)
+                setIsGenerating(false)
+            }
+        }
+    }
+
+    const toggleSubscriptionTest = async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        try {
+            const newSub = !isSubscribed
+            const { error } = await supabase
+                .from('profiles')
+                .update({ is_subscribed: newSub })
+                .eq('id', user.id)
+
+            if (error) throw error
+            setIsSubscribed(newSub)
+            setMaxChars(newSub ? 500 : 100)
+            alert(language === 'ko' 
+                ? `구독 상태가 ${newSub ? '프리미엄' : '무료'}으로 변경되었습니다!` 
+                : `Subscription toggled to ${newSub ? 'Premium' : 'Free'}!`)
+        } catch (e: any) {
+            console.error(e)
+        }
+    }
 
     const handleGenerateAndSave = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -238,6 +317,69 @@ export default function NewEntryPage() {
     // Unlock on user interaction
     const unlockScroll = () => {
         isManualScroll.current = true
+    }
+
+    if (isLoadingCheck) {
+        return (
+            <div className="container max-w-2xl py-20 px-4 mx-auto font-handwriting text-center">
+                <div className="text-xl font-bold text-muted-foreground animate-pulse">
+                    {language === 'ko' ? '상태를 확인하고 있습니다...' : 'Checking status...'}
+                </div>
+            </div>
+        )
+    }
+
+    if (hasWrittenToday) {
+        return (
+            <div className="container max-w-xl py-16 px-4 mx-auto font-handwriting">
+                <div className="border-4 border-white rounded-sm bg-card p-6 md:p-8 flex flex-col gap-6 text-center items-center shadow-md">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <Lock size={36} />
+                    </div>
+                    
+                    <div className="flex flex-col gap-2">
+                        <h2 className="text-2xl md:text-3xl font-bold text-foreground">
+                            {language === 'ko' ? '오늘 일기가 이미 작성되었습니다.' : "Today's diary is already written."}
+                        </h2>
+                        <p className="text-muted-foreground text-base md:text-lg leading-relaxed">
+                            {isSubscribed ? (
+                                language === 'ko' 
+                                    ? '프리미엄 회원은 오늘 일기를 삭제하고 다시 작성할 수 있습니다. 오늘 일기를 삭제하고 다시 쓰시겠습니까?' 
+                                    : "Premium members can delete today's diary and write a new one. Would you like to delete and rewrite today's diary?"
+                            ) : (
+                                language === 'ko' 
+                                    ? '두들로그는 하루에 한 번만 일기 작성이 가능합니다. 프리미엄 구독을 시작하시면 오늘 일기를 삭제하고 새로운 그림을 다시 생성할 수 있습니다!' 
+                                    : "Doodle Log only allows one entry per day. Subscribe to premium to delete today's diary and generate a new drawing!"
+                            )}
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 w-full mt-4">
+                        {isSubscribed ? (
+                            <button
+                                onClick={handleDeleteTodayDiary}
+                                className="w-full py-3.5 bg-primary text-primary-foreground font-bold text-lg rounded shadow hover:scale-[1.02] active:scale-95 transition-transform"
+                            >
+                                {language === 'ko' ? '오늘 일기 삭제하고 다시 쓰기' : "Delete & Rewrite Today's Diary"}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={toggleSubscriptionTest}
+                                className="w-full py-3.5 bg-yellow-400 text-black font-bold text-lg rounded shadow hover:scale-[1.02] active:scale-95 transition-transform"
+                            >
+                                {language === 'ko' ? '프리미엄 구독하기 ($4.90/월)' : 'Subscribe to Premium ($4.90/mo)'}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => router.push('/gallery')}
+                            className="w-full py-3.5 bg-stone-200 text-stone-700 font-bold text-lg rounded hover:bg-stone-300 transition-colors"
+                        >
+                            {language === 'ko' ? '다른 일기 구경하러 가기' : 'Go to Gallery'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (
